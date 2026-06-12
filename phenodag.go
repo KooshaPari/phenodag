@@ -26,6 +26,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	_ "modernc.org/sqlite"
@@ -344,18 +345,300 @@ func v3Side() []seedTask {
 	return out
 }
 
+// melosvizCore: 7 stages x 20 width = 140 core tasks.
+// Stages 1-6 mirror v3; L7 is MELOSVIZ-only SUSTAIN (retro, debt, etc.)
+func melosvizCore() []seedTask {
+	stages := []struct {
+		kind, verb string
+	}{
+		{"audit", "audit for"},
+		{"hygiene", "hygiene for"},
+		{"test", "test coverage for"},
+		{"libify", "libify for"},
+		{"integrate", "integrate libs into"},
+		{"ship", "ship"},
+		{"sustain", "sustain for"},
+	}
+	out := []seedTask{}
+	for stage := 1; stage <= 7; stage++ {
+		s := stages[stage-1]
+		for slot := 1; slot <= 20; slot++ {
+			var repo, sub string
+			switch stage {
+			case 1, 2, 3, 4:
+				repo = fleetPriority[(slot-1)%len(fleetPriority)]
+			case 5:
+				if slot <= 16 {
+					repo = fleetPriority[slot-1]
+				} else {
+					repo = activeRepos[slot-16-1]
+				}
+			case 6:
+				if slot <= 11 {
+					repo = activeRepos[slot-1]
+				} else {
+					repo = "fleet-wide"
+				}
+			case 7:
+				// SUSTAIN: per-subproject retro + debt retire + ADR
+				if slot <= 16 {
+					repo = fleetPriority[slot-1]
+				} else {
+					repo = "fleet-wide"
+				}
+			}
+			id := fmt.Sprintf("task-%02d-%02d", stage, slot)
+			desc := fmt.Sprintf("L%d %s %s slot %d (%s)", stage, s.verb, repo, slot, sub)
+			out = append(out, seedTask{
+				ID: id, Desc: desc, Repo: repo, Sub: sub, Kind: s.kind,
+				Stage: stage, Slot: slot, Priority: 5 + stage,
+			})
+		}
+	}
+	return out
+}
+
+// melosvizSide: 9 side-DAGs x 5 = 45 side tasks (MELOSVIZ-specific subset of v3 side-DAGs)
+func melosvizSide() []seedTask {
+	projects := []struct {
+		id, name, repo string
+		tasks          [5]string
+	}{
+		{"sd-audit", "Audit & Compliance", "agileplus", [5]string{"audit-org", "license-check", "secret-scan", "dep-vuln", "sbom-export"}},
+		{"sd-ci", "CI/CD Pipelines", "pheno-pipelines", [5]string{"cache-warmup", "matrices", "retry-policy", "artifact-store", "runner-pools"}},
+		{"sd-docs", "Documentation", "phenodocs", [5]string{"doc-gen", "api-ref", "tutorial", "changelog", "rfc-flow"}},
+		{"sd-error", "Error Codes", "phenotype-errors", [5]string{"code-registry", "machine-codes", "i18n", "incident-codes", "code-projection"}},
+		{"sd-fuzz", "Fuzzing", "phenoFuzz", [5]string{"harness", "corpus", "repro", "coverage", "ci-fuzz"}},
+		{"sd-libify", "Libification", "pheno-libs", [5]string{"extract-rule", "dual-pub", "adopt-1", "adopt-2", "guide"}},
+		{"sd-obs", "Observability", "phenoObservability", [5]string{"otel-bridge", "dashboards", "alerts", "on-call", "postmortem"}},
+		{"sd-perf", "Performance", "heliosBench", [5]string{"baseline", "regress-test", "flame-graph", "memprof", "loadtest"}},
+		{"sd-release", "Release", "phenotype-release", [5]string{"semver", "changelog-auto", "rollback", "canary", "signing"}},
+	}
+	out := []seedTask{}
+	for _, p := range projects {
+		for i, t := range p.tasks {
+			out = append(out, seedTask{
+				ID:       fmt.Sprintf("%s-%02d", p.id, i+1),
+				Desc:     fmt.Sprintf("%s sub-task %d (%s): %s", p.name, i+1, p.repo, t),
+				Repo:     p.repo,
+				Kind:     "side",
+				Stage:    0,
+				Slot:     0,
+				Priority: 3,
+				SideDAG:  p.id,
+			})
+		}
+	}
+	return out
+}
+
+// agileplusCore: 4 stages x 5 width = 20 core tasks (spec harmonization).
+// L1=intake, L2=harmonize, L3=trace-link, L4=govern.
+// Each task is a substantive deliverable for spec harmonization.
+func agileplusCore() []seedTask {
+	type spec struct {
+		kind, verb, what string
+	}
+	rows := []spec{
+		// L1 intake (5)
+		{"intake", "intake", "spec source registry: enumerate 20+ upstream spec repos with metadata (license, status, owner)"},
+		{"intake", "intake", "intake manifest: per-spec fields (title, owner, version, license, status, sha)"},
+		{"intake", "intake", "terminology extraction: glossary terms with aliases, synonyms, deprecated forms"},
+		{"intake", "intake", "stakeholder map: RACI for spec authoring, review, consumption, retirement"},
+		{"intake", "intake", "triage workflow: severity classification (draft / active / deprecated / superseded)"},
+		// L2 harmonize (5)
+		{"harmonize", "harmonize", "schema normalization: align to canonical spec model v3.1 with field map"},
+		{"harmonize", "harmonize", "conflict detection: cross-spec duplicate requirements with similarity score"},
+		{"harmonize", "harmonize", "resolution rules: precedence (local > upstream), merge heuristics, manual override"},
+		{"harmonize", "harmonize", "field mapping: legacy fields (status, owner, version) → canonical fields"},
+		{"harmonize", "harmonize", "version pin policy: lockstep vs floating per dependency, drift detection"},
+		// L3 trace-link (5)
+		{"trace-link", "trace-link", "requirement extraction: parse shall-statements into testable requirements"},
+		{"trace-link", "trace-link", "link graph: requirement → spec section → ADR → test case (4-hop)"},
+		{"trace-link", "trace-link", "coverage matrix: % requirements with at least 1 downstream test"},
+		{"trace-link", "trace-link", "orphan detection: tests without reqs, reqs without tests, ADRs without reqs"},
+		{"trace-link", "trace-link", "trace export: ReqIF, OSLC, JSON-LD formats with bidirectional lookup"},
+		// L4 govern (5)
+		{"govern", "govern", "review board: 3-of-5 approval workflow with cryptographic sign-off"},
+		{"govern", "govern", "change advisory board: CAB packets, monthly cadence, emergency fast-track"},
+		{"govern", "govern", "compliance check: license (SPDX), IP attribution, export control per spec"},
+		{"govern", "govern", "sign-off ledger: append-only chain of attestations with timestamp + signer"},
+		{"govern", "govern", "sunset protocol: deprecation timeline (announce → warn → remove), migration guide"},
+	}
+	out := make([]seedTask, len(rows))
+	for i, r := range rows {
+		stage := (i / 5) + 1
+		slot := (i % 5) + 1
+		id := fmt.Sprintf("task-%02d-%02d", stage, slot)
+		desc := fmt.Sprintf("L%d %s slot %d: %s", stage, r.verb, slot, r.what)
+		out[i] = seedTask{
+			ID: id, Desc: desc, Repo: "agileplus", Sub: "", Kind: r.kind,
+			Stage: stage, Slot: slot, Priority: 5 + stage,
+		}
+	}
+	return out
+}
+
+// agileplusSide: 6 side-DAGs x 5 = 30 side tasks for spec harmonization
+// (sd-gsd, sd-openspec, sd-bmad, sd-kitty, sd-trace, sd-govern).
+func agileplusSide() []seedTask {
+	projects := []struct {
+		id, name, repo string
+		tasks          [5]string
+	}{
+		{"sd-gsd", "Get-Shit-Done", "agileplus", [5]string{"gsd-bootstrap", "gsd-prd", "gsd-arch", "gsd-build", "gsd-ship"}},
+		{"sd-openspec", "OpenSpec", "agileplus", [5]string{"openspec-import", "openspec-convert", "openspec-validate", "openspec-diff", "openspec-export"}},
+		{"sd-bmad", "BMAD", "agileplus", [5]string{"bmad-brief", "bmad-market", "bmad-arch", "bmad-sprint", "bmad-retro"}},
+		{"sd-kitty", "Spec-Kitty", "agileplus", [5]string{"kitty-research", "kitty-spec", "kitty-plan", "kitty-implement", "kitty-merge"}},
+		{"sd-trace", "Traceability", "agileplus", [5]string{"trace-extract", "trace-link", "trace-matrix", "trace-impact", "trace-export"}},
+		{"sd-govern", "Governance", "agileplus", [5]string{"govern-policy", "govern-review", "govern-cab", "govern-audit", "govern-sunset"}},
+	}
+	out := []seedTask{}
+	for _, p := range projects {
+		for i, t := range p.tasks {
+			out = append(out, seedTask{
+				ID:       fmt.Sprintf("%s-%02d", p.id, i+1),
+				Desc:     fmt.Sprintf("%s sub-task %d (%s): %s", p.name, i+1, p.repo, t),
+				Repo:     p.repo,
+				Kind:     "side",
+				Stage:    0,
+				Slot:     0,
+				Priority: 3,
+				SideDAG:  p.id,
+			})
+		}
+	}
+	return out
+}
+
+// traceraCore: 4 stages x 5 width = 20 core tasks.
+// L1=graph, L2=projection, L3=autograder, L4=runtime.
+func traceraCore() []seedTask {
+	type spec struct {
+		kind, verb, what string
+	}
+	rows := []spec{
+		// L1 graph (5)
+		{"graph", "graph", "AST extractor: per-language tree-sitter grammars with incremental parse"},
+		{"graph", "graph", "symbol index: package/function/class/type resolution with scoping rules"},
+		{"graph", "graph", "edge builder: imports, calls, references, type-of relationships"},
+		{"graph", "graph", "cycle detection: strongly connected components, feedback arc sets"},
+		{"graph", "graph", "reachability: BFS from entrypoints, dead-code report, churn-weighted"},
+		// L2 projection (5)
+		{"projection", "project", "multi-view render: callgraph, depgraph, ownership, lineage"},
+		{"projection", "project", "layout engine: dot, dagre, ELK, sugarcube, force-directed"},
+		{"projection", "project", "filter DSL: by repo, path, regex, language, glob, attribute"},
+		{"projection", "project", "diff projection: between revisions (git rev-parse), branch compare"},
+		{"projection", "project", "cross-repo stitch: monorepo vs polyrepo topology, federation"},
+		// L3 autograder (5)
+		{"autograder", "grade", "policy DSL: rego/cel expressions, custom rules, severity hooks"},
+		{"autograder", "grade", "rule pack: bundle of common checks (no-cycle, no-dead-code, max-depth)"},
+		{"autograder", "grade", "lint runner: per-language linter integration (eslint, clippy, ruff)"},
+		{"autograder", "grade", "severity assignment: blocker/error/warning/info, suppressions"},
+		{"autograder", "grade", "score aggregation: weighted sum, percentile, badge eligibility"},
+		// L4 runtime (5)
+		{"runtime", "run", "live watcher: fsnotify (mac), kqueue (bsd), inotify (linux)"},
+		{"runtime", "run", "incremental update: delta-from-baseline, selective re-parse"},
+		{"runtime", "run", "cache layer: keyed by content hash, invalidated on mtime + content change"},
+		{"runtime", "run", "API server: HTTP/JSON, GraphQL, gRPC with auth + rate-limit"},
+		{"runtime", "run", "Web UI: interactive graph (sigma.js, cytoscape, d3) with pan/zoom/select"},
+	}
+	out := make([]seedTask, len(rows))
+	for i, r := range rows {
+		stage := (i / 5) + 1
+		slot := (i % 5) + 1
+		id := fmt.Sprintf("task-%02d-%02d", stage, slot)
+		desc := fmt.Sprintf("L%d %s slot %d: %s", stage, r.verb, slot, r.what)
+		out[i] = seedTask{
+			ID: id, Desc: desc, Repo: "tracera", Sub: "", Kind: r.kind,
+			Stage: stage, Slot: slot, Priority: 5 + stage,
+		}
+	}
+	return out
+}
+
+// traceraSide: 6 side-DAGs x 5 = 30 side tasks
+// (sd-fr-nfr, sd-trace-link, sd-matrix, sd-impact, sd-rag, sd-autograder).
+func traceraSide() []seedTask {
+	projects := []struct {
+		id, name, repo string
+		tasks          [5]string
+	}{
+		{"sd-fr-nfr", "ReqClassify", "tracera", [5]string{"fr-extract", "fr-classify", "nfr-extract", "nfr-measure", "nfr-report"}},
+		{"sd-trace-link", "TraceLink", "tracera", [5]string{"link-extract", "link-resolve", "link-validate", "link-prune", "link-export"}},
+		{"sd-matrix", "CoverageMatrix", "tracera", [5]string{"matrix-build", "matrix-aggregate", "matrix-viz", "matrix-export", "matrix-snapshot"}},
+		{"sd-impact", "ImpactAnalysis", "tracera", [5]string{"impact-blast", "impact-ranker", "impact-suggest", "impact-pr", "impact-approve"}},
+		{"sd-rag", "RAGGrounded", "tracera", [5]string{"rag-embed", "rag-index", "rag-retrieve", "rag-cite", "rag-audit"}},
+		{"sd-autograder", "AutoGrader", "tracera", [5]string{"grader-rules", "grader-runs", "grader-bundles", "grader-badges", "grader-gate"}},
+	}
+	out := []seedTask{}
+	for _, p := range projects {
+		for i, t := range p.tasks {
+			out = append(out, seedTask{
+				ID:       fmt.Sprintf("%s-%02d", p.id, i+1),
+				Desc:     fmt.Sprintf("%s sub-task %d (%s): %s", p.name, i+1, p.repo, t),
+				Repo:     p.repo,
+				Kind:     "side",
+				Stage:    0,
+				Slot:     0,
+				Priority: 3,
+				SideDAG:  p.id,
+			})
+		}
+	}
+	return out
+}
+
 func cmdSeed(args []string) error {
 	fs := flag.NewFlagSet("seed", flag.ExitOnError)
-	preset := fs.String("preset", "v3-180", "preset name (currently only v3-180)")
+	preset := fs.String("preset", "v3-180", "preset name (v3-180, melosviz-185, agileplus-50, tracera-50)")
 	_ = fs.String("db", gDBPath, "path to SQLite DB")
 	fs.Parse(args)
 
-	if *preset != "v3-180" {
-		return fmt.Errorf("only built-in preset is v3-180; got %q", *preset)
-	}
+	// Spread the 4 new (agileplus-*, tracera-*) builders across separate
+	// goroutines; v3-180 and melosviz-185 are kept synchronous for
+	// backwards compatibility.
+	var (
+		wg          sync.WaitGroup
+		apCore, apSide, trCore, trSide []seedTask
+	)
+	wg.Add(4)
+	go func() { defer wg.Done(); apCore = agileplusCore() }()
+	go func() { defer wg.Done(); apSide = agileplusSide() }()
+	go func() { defer wg.Done(); trCore = traceraCore() }()
+	go func() { defer wg.Done(); trSide = traceraSide() }()
+	wg.Wait()
 
-	core := v3Core()
-	side := v3Side()
+	var core, side []seedTask
+	var presetName, presetDesc, shape string
+	switch *preset {
+	case "v3-180":
+		core = v3Core()
+		side = v3Side()
+		presetName = "v3-180"
+		presetDesc = "v3-180: 120 core (6 stages x 20 width) + 60 side (12 projects x 5)"
+		shape = "20x6 + 12 side-dags of 5"
+	case "melosviz-185":
+		core = melosvizCore()
+		side = melosvizSide()
+		presetName = "melosviz-185"
+		presetDesc = "melosviz-185: 140 core (7 stages x 20 width) + 45 side (9 projects x 5)"
+		shape = "20x7 + 9 side-dags of 5"
+	case "agileplus-50":
+		core = apCore
+		side = apSide
+		presetName = "agileplus-50"
+		presetDesc = "agileplus-50: 20 core (4 stages x 5 width) + 30 side (6 projects x 5)"
+		shape = "5x4 + 6 side-dags of 5"
+	case "tracera-50":
+		core = trCore
+		side = trSide
+		presetName = "tracera-50"
+		presetDesc = "tracera-50: 20 core (4 stages x 5 width) + 30 side (6 projects x 5)"
+		shape = "5x4 + 6 side-dags of 5"
+	default:
+		return fmt.Errorf("unknown preset %q (try v3-180, melosviz-185, agileplus-50, tracera-50)", *preset)
+	}
 
 	db, err := openDB(gDBPath)
 	if err != nil {
@@ -388,8 +671,17 @@ func cmdSeed(args []string) error {
 			return err
 		}
 	}
-	for stage := 1; stage < 6; stage++ {
-		for slot := 1; slot <= 20; slot++ {
+	maxStage := 6
+	maxSlot := 20
+	if presetName == "melosviz-185" {
+		maxStage = 7
+	}
+	if presetName == "agileplus-50" || presetName == "tracera-50" {
+		maxStage = 4
+		maxSlot = 5
+	}
+	for stage := 1; stage < maxStage; stage++ {
+		for slot := 1; slot <= maxSlot; slot++ {
 			from := fmt.Sprintf("task-%02d-%02d", stage, slot)
 			to := fmt.Sprintf("task-%02d-%02d", stage+1, slot)
 			_, _ = estmt.Exec(from, to)
@@ -398,16 +690,23 @@ func cmdSeed(args []string) error {
 	if err := tx.Commit(); err != nil {
 		return err
 	}
+	sideDAGCount := 12
+	if presetName == "melosviz-185" {
+		sideDAGCount = 9
+	}
+	if presetName == "agileplus-50" || presetName == "tracera-50" {
+		sideDAGCount = 6
+	}
 	for _, kv := range [][2]string{
-		{"preset", "v3-180"},
-		{"preset_description", "v3-180: 120 core (6 stages x 20 width) + 60 side (12 projects x 5)"},
-		{"shape", "20x6 + 12 side-dags of 5"},
+		{"preset", presetName},
+		{"preset_description", presetDesc},
+		{"shape", shape},
 	} {
 		_, _ = db.Exec(`INSERT INTO dag_meta(key, value) VALUES(?, ?)
 			ON CONFLICT(key) DO UPDATE SET value=excluded.value`, kv[0], kv[1])
 	}
-	fmt.Printf("seeded v3-180: %d core + %d side = %d tasks, 12 side-DAGs\n",
-		len(core), len(side), len(core)+len(side))
+	fmt.Printf("seeded %s: %d core + %d side = %d tasks, %d side-DAGs\n",
+		presetName, len(core), len(side), len(core)+len(side), sideDAGCount)
 	return nil
 }
 
@@ -1186,11 +1485,22 @@ func cmdExport(args []string) error {
 		return err
 	}
 	defer db.Close()
+	// Pre-load all tasks into memory to avoid deadlock with MaxOpenConns(1)
+	type exportRow struct {
+		id, desc, repo, sub, cat, lane, br, kind, sh, side, status, ag string
+		stage, slot, prio                                              int
+	}
+	var allRows []exportRow
 	rows, err := db.Query(`SELECT id, stage, slot, description, repo, subproject, category, lane, branch, kind, priority, semantic_hash, side_dag, status, assigned_agent FROM tasks ORDER BY stage, slot, id`)
 	if err != nil {
 		return err
 	}
-	defer rows.Close()
+	for rows.Next() {
+		var r exportRow
+		_ = rows.Scan(&r.id, &r.stage, &r.slot, &r.desc, &r.repo, &r.sub, &r.cat, &r.lane, &r.br, &r.kind, &r.prio, &r.sh, &r.side, &r.status, &r.ag)
+		allRows = append(allRows, r)
+	}
+	rows.Close()
 	var w *os.File
 	if *out == "" {
 		w = os.Stdout
@@ -1209,14 +1519,9 @@ func cmdExport(args []string) error {
 	}
 	fmt.Fprintf(w, "| Status | Stage | Task | Kind | Repo | Description |\n")
 	fmt.Fprintf(w, "|---|---|---|---|---|---|\n")
-	for rows.Next() {
-		var (
-			id, desc, repo, sub, cat, lane, br, kind, sh, side, status, ag string
-			stage, slot, prio                                              int
-		)
-		_ = rows.Scan(&id, &stage, &slot, &desc, &repo, &sub, &cat, &lane, &br, &kind, &prio, &sh, &side, &status, &ag)
+	for _, r := range allRows {
 		emoji := "⬜"
-		switch status {
+		switch r.status {
 		case "done":
 			emoji = "✅"
 		case "in_progress":
@@ -1226,14 +1531,15 @@ func cmdExport(args []string) error {
 		case "failed":
 			emoji = "❌"
 		}
-		stageLabel := fmt.Sprintf("L%d", stage)
-		if stage == 0 {
+		stageLabel := fmt.Sprintf("L%d", r.stage)
+		if r.stage == 0 {
 			stageLabel = "pool"
 		}
+		desc := r.desc
 		if len(desc) > 80 {
 			desc = desc[:77] + "..."
 		}
-		fmt.Fprintf(w, "| %s | %s | %s | %s | %s | %s |\n", emoji, stageLabel, id, kind, repo, desc)
+		fmt.Fprintf(w, "| %s | %s | %s | %s | %s | %s |\n", emoji, stageLabel, r.id, r.kind, r.repo, desc)
 	}
 	if *out != "" {
 		fmt.Printf("exported to %s\n", *out)

@@ -114,3 +114,85 @@ func TestV3SideHas60(t *testing.T) {
 		t.Errorf("v3Side() = %d tasks, want 60", got)
 	}
 }
+
+func TestMelosvizCoreHas140(t *testing.T) {
+	tasks := melosvizCore()
+	if got := len(tasks); got != 140 {
+		t.Errorf("melosvizCore() = %d tasks, want 140 (7 stages x 20 width)", got)
+	}
+}
+
+func TestMelosvizSideHas45(t *testing.T) {
+	tasks := melosvizSide()
+	if got := len(tasks); got != 45 {
+		t.Errorf("melosvizSide() = %d tasks, want 45 (9 side-DAGs x 5)", got)
+	}
+}
+
+func TestAgileplusCoreHas20(t *testing.T) {
+	tasks := agileplusCore()
+	if got := len(tasks); got != 20 {
+		t.Errorf("agileplusCore() = %d tasks, want 20 (4 stages x 5 width)", got)
+	}
+	// Sanity check: 4 unique stages (L1..L4) and 5 unique slots (1..5).
+	stagesSeen := map[int]bool{}
+	slotsSeen := map[int]bool{}
+	for _, x := range tasks {
+		stagesSeen[x.Stage] = true
+		slotsSeen[x.Slot] = true
+	}
+	if len(stagesSeen) != 4 {
+		t.Errorf("agileplusCore() stages = %d, want 4 unique", len(stagesSeen))
+	}
+	if len(slotsSeen) != 5 {
+		t.Errorf("agileplusCore() slots = %d, want 5 unique", len(slotsSeen))
+	}
+}
+
+func TestAgileplusSideHas30(t *testing.T) {
+	tasks := agileplusSide()
+	if got := len(tasks); got != 30 {
+		t.Errorf("agileplusSide() = %d tasks, want 30 (6 side-DAGs x 5)", got)
+	}
+	// 6 distinct side-DAGs expected.
+	seen := map[string]bool{}
+	for _, x := range tasks {
+		seen[x.SideDAG] = true
+	}
+	if len(seen) != 6 {
+		t.Errorf("agileplusSide() distinct side-DAGs = %d, want 6", len(seen))
+	}
+}
+
+func TestTraceraCoreHas20(t *testing.T) {
+	tasks := traceraCore()
+	if got := len(tasks); got != 20 {
+		t.Errorf("traceraCore() = %d tasks, want 20 (4 stages x 5 width)", got)
+	}
+	stagesSeen := map[int]bool{}
+	slotsSeen := map[int]bool{}
+	for _, x := range tasks {
+		stagesSeen[x.Stage] = true
+		slotsSeen[x.Slot] = true
+	}
+	if len(stagesSeen) != 4 {
+		t.Errorf("traceraCore() stages = %d, want 4 unique", len(stagesSeen))
+	}
+	if len(slotsSeen) != 5 {
+		t.Errorf("traceraCore() slots = %d, want 5 unique", len(slotsSeen))
+	}
+}
+
+func TestTraceraSideHas30(t *testing.T) {
+	tasks := traceraSide()
+	if got := len(tasks); got != 30 {
+		t.Errorf("traceraSide() = %d tasks, want 30 (6 side-DAGs x 5)", got)
+	}
+	seen := map[string]bool{}
+	for _, x := range tasks {
+		seen[x.SideDAG] = true
+	}
+	if len(seen) != 6 {
+		t.Errorf("traceraSide() distinct side-DAGs = %d, want 6", len(seen))
+	}
+}

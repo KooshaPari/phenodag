@@ -40,6 +40,19 @@ phenodag (this binary)
 
 To create your own preset, copy `presets/empty.yaml` and add tasks. Or write a Go file in `cmd/phenodag/preset_*.go` (see `preset_v3_180.go` for the pattern).
 
+## Presets
+
+Built-in presets seeded with `phenodag seed --preset <name>`:
+
+| Preset | Core | Side | Total | Use it for |
+| --- | ---: | ---: | ---: | --- |
+| `v3-180` | 120 | 60 | 180 | V3 execution-log fleet (default; 6 stages × 20 width + 12 side-DAGs × 5) |
+| `melosviz-185` | 140 | 45 | 185 | Melosviz fleet (7 stages × 20 width + 9 side-DAGs × 5) |
+| `agileplus-50` | 20 | 30 | 50 | AgilePlus fleet (4 stages × 5 width + 6 side-DAGs × 5; use `fill` to fill width-20 slots) |
+| `tracera-50` | 20 | 30 | 50 | Tracera fleet (4 stages × 5 width + 6 side-DAGs × 5; use `fill` to fill width-20 slots) |
+
+`--stages` on `init` must be `≥ 6` for `v3-180`, `≥ 7` for `melosviz-185`, `≥ 5` for `agileplus-50` / `tracera-50`. `--width` only needs to be large enough to hold the core tasks per stage (or larger — `fill` will pack side-DAGs into the slack).
+
 ## Multi-agent concurrency
 
 - `pick` is atomic via `BEGIN IMMEDIATE` transaction + `withLock` (POSIX `flock` LOCK_EX|LOCK_NB)
