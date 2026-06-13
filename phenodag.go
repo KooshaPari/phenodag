@@ -32,7 +32,7 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-const version = "0.1.0"
+const version = "0.3.0"
 
 var gDBPath = "phenodag.db"
 
