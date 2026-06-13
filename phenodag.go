@@ -54,7 +54,7 @@ func openDB(path string) (*sql.DB, error) {
 func migrate(db *sql.DB) error {
 	stmts := []string{
 		`CREATE TABLE IF NOT EXISTS dag_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)`,
-		`CREATE TABLE IF NOT EXISTS agents (id TEXT PRIMARY KEY, status TEXT NOT NULL DEFAULT 'active', last_seen TEXT NOT NULL, created_at TEXT NOT NULL)`,
+		`CREATE TABLE IF NOT EXISTS agents (id TEXT PRIMARY KEY, status TEXT NOT NULL DEFAULT 'active', last_seen TEXT NOT NULL, last_heartbeat TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL)`,
 		`CREATE TABLE IF NOT EXISTS tasks (
 			id TEXT PRIMARY KEY, stage INTEGER NOT NULL DEFAULT 0, slot INTEGER NOT NULL DEFAULT 0,
 			description TEXT NOT NULL, repo TEXT NOT NULL DEFAULT '', subproject TEXT NOT NULL DEFAULT '',
@@ -81,6 +81,13 @@ func migrate(db *sql.DB) error {
 		if _, err := db.Exec(s); err != nil {
 			return fmt.Errorf("migrate: %w", err)
 		}
+	}
+	// Idempotent migrations
+	for _, s := range []string{
+		`ALTER TABLE agents ADD COLUMN last_heartbeat TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE repos ADD COLUMN is_mangled INTEGER NOT NULL DEFAULT 0`,
+	} {
+		_, _ = db.Exec(s)
 	}
 	for _, s := range []string{
 		`CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status)`,
@@ -150,6 +157,8 @@ func main() {
 		err = cmdRelease(args)
 	case "heartbeat":
 		err = cmdHeartbeat(args)
+	case "reclaim":
+		err = cmdReclaim(args)
 	case "done":
 		err = cmdDone(args)
 	case "fail":
@@ -193,6 +202,7 @@ Commands:
   claim      Claim repo/branch/worktree for a task
   release    Release a claim
   heartbeat  Update agent heartbeat
+  reclaim    Reap stale agents (heartbeat > 15 min)
   done       Mark task done (unblocks downstream)
   fail       Mark task failed
   fill       Promote side-DAGs into stage gaps
@@ -1039,8 +1049,56 @@ func cmdHeartbeat(args []string) error {
 		return err
 	}
 	defer db.Close()
-	_, err = db.Exec(`UPDATE agents SET last_seen=? WHERE id=?`, nowUTC(), *agent)
-	return err
+	return withLock(gDBPath, func() error {
+		_, err := db.Exec(`UPDATE agents SET last_heartbeat=CURRENT_TIMESTAMP, status='active' WHERE id=?`, *agent)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintf(os.Stderr, "agent %s heartbeat recorded\n", *agent)
+		return nil
+	})
+}
+
+// ---------- reclaim ----------
+
+func cmdReclaim(args []string) error {
+	fs := flag.NewFlagSet("reclaim", flag.ExitOnError)
+	_ = fs.String("db", gDBPath, "path to SQLite DB")
+	_ = fs.String("stale-min", "15", "minutes since last heartbeat to consider stale")
+	fs.Parse(args)
+	db, err := openDB(gDBPath)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	return withLock(gDBPath, func() error {
+		var staleAgents []string
+		rows, err := db.Query(`SELECT id FROM agents WHERE status='active' AND last_heartbeat < datetime('now', '-15 minutes')`)
+		if err != nil {
+			return err
+		}
+		for rows.Next() {
+			var id string
+			_ = rows.Scan(&id)
+			staleAgents = append(staleAgents, id)
+		}
+		_ = rows.Close()
+		tx, err := db.Begin()
+		if err != nil {
+			return err
+		}
+		defer tx.Rollback()
+		for _, id := range staleAgents {
+			_, _ = tx.Exec(`UPDATE agents SET status='stale' WHERE id=?`, id)
+			_, _ = tx.Exec(`UPDATE tasks SET status='ready', assigned_agent=NULL WHERE assigned_agent=?`, id)
+			_, _ = tx.Exec(`DELETE FROM claims WHERE agent=?`, id)
+		}
+		if err := tx.Commit(); err != nil {
+			return err
+		}
+		fmt.Fprintf(os.Stderr, "reclaimed %d stale agent(s): %v\n", len(staleAgents), staleAgents)
+		return nil
+	})
 }
 
 // ---------- done ----------
