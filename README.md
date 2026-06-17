@@ -71,8 +71,11 @@ Built-in presets seeded with `phenodag seed --preset <name>`:
 | `melosviz-185` | 140 | 45 | 185 | Melosviz fleet (7 stages × 20 width + 9 side-DAGs × 5) |
 | `agileplus-50` | 20 | 30 | 50 | AgilePlus fleet (4 stages × 5 width + 6 side-DAGs × 5; use `fill` to fill width-20 slots) |
 | `tracera-50` | 20 | 30 | 50 | Tracera fleet (4 stages × 5 width + 6 side-DAGs × 5; use `fill` to fill width-20 slots) |
+| `mcp-fleet-60` | 30 | 30 | 60 | MCP polyrepo execution plan (6 stages × 5 width + 6 side-DAGs × 5; includes `sd-dagctl` merge pool) |
 
-`--stages` on `init` must be `≥ 6` for `v3-180`, `≥ 7` for `melosviz-185`, `≥ 5` for `agileplus-50` / `tracera-50`. `--width` only needs to be large enough to hold the core tasks per stage (or larger — `fill` will pack side-DAGs into the slack).
+`--stages` on `init` must be `≥ 6` for `v3-180`, `≥ 7` for `melosviz-185`, `≥ 5` for `agileplus-50` / `tracera-50` / `mcp-fleet-60`. `--width` only needs to be large enough to hold the core tasks per stage (or larger — `fill` will pack side-DAGs into the slack).
+
+See [docs/dagctl-merge-status.md](docs/dagctl-merge-status.md) for dagctl → phenodag superset merge progress.
 
 ## Multi-agent concurrency
 
