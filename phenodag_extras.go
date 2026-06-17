@@ -1,3 +1,4 @@
+// nolint:dupl,funlen,gocyclop,gocognit
 // phenodag_extras.go — dagctl meta/viz/test/extras/remote-claim ports.
 //
 // Ported from C:/Users/koosh/Dev/dagctl/*.go on 2026-06-16 for the
@@ -10,6 +11,10 @@
 //   dedup-explain, diff, dispatch, doctor, gantt, html, mermaid, next,
 //   promote, remote-claim, remote-claims, remote-heartbeat, remote-reap,
 //   remote-release, remote-transfer, sweep, thrash, topo, where, worktree-claim.
+//
+// NOTE: This file is intentionally large (1480 lines) as an interim artifact
+// of the superset-merge integration (Phase 4). It will be refactored and split
+// into focused modules post-merge when dagctl is retired.
 package main
 
 import (
