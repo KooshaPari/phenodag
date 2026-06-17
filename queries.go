@@ -421,3 +421,25 @@ func queryTasksByStageWithDescription(db *sql.DB) []struct {
 	}
 	return result
 }
+
+// queryTaskCountsByStatus returns task counts for each status.
+func queryTaskCountsByStatus(db *sql.DB) map[string]int {
+	result := map[string]int{}
+	queries := map[string]string{
+		"total":       "SELECT COUNT(*) FROM tasks",
+		"done":        "SELECT COUNT(*) FROM tasks WHERE status='done'",
+		"in_progress": "SELECT COUNT(*) FROM tasks WHERE status='in_progress'",
+		"failed":      "SELECT COUNT(*) FROM tasks WHERE status='failed'",
+		"ready":       "SELECT COUNT(*) FROM tasks WHERE status='ready'",
+		"blocked":     "SELECT COUNT(*) FROM tasks WHERE status='blocked'",
+	}
+	for key, query := range queries {
+		var count int
+		err := db.QueryRow(query).Scan(&count)
+		if err != nil {
+			log.Printf("queryTaskCountsByStatus[%s]: %v", key, err)
+		}
+		result[key] = count
+	}
+	return result
+}

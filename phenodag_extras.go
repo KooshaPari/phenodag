@@ -1048,13 +1048,13 @@ func renderDashboardPort(dbPath string) {
 		return
 	}
 	defer db.Close()
-	var total, done, inprog, failed, ready, blocked int
-	_ = db.QueryRow("SELECT COUNT(*) FROM tasks").Scan(&total)
-	_ = db.QueryRow("SELECT COUNT(*) FROM tasks WHERE status='done'").Scan(&done)
-	_ = db.QueryRow("SELECT COUNT(*) FROM tasks WHERE status='in_progress'").Scan(&inprog)
-	_ = db.QueryRow("SELECT COUNT(*) FROM tasks WHERE status='failed'").Scan(&failed)
-	_ = db.QueryRow("SELECT COUNT(*) FROM tasks WHERE status='ready'").Scan(&ready)
-	_ = db.QueryRow("SELECT COUNT(*) FROM tasks WHERE status='blocked'").Scan(&blocked)
+	counts := queryTaskCountsByStatus(db)
+	total := counts["total"]
+	done := counts["done"]
+	inprog := counts["in_progress"]
+	failed := counts["failed"]
+	ready := counts["ready"]
+	blocked := counts["blocked"]
 	now := time.Now().Format("15:04:05")
 	fmt.Printf("phenodag Dashboard [%s]\n", now)
 	fmt.Println(strings.Repeat("-", 60))
