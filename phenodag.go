@@ -661,9 +661,97 @@ func traceraSide() []seedTask {
 	return out
 }
 
+// mcpFleetCore: 6 stages x 5 width = 30 core tasks (MCP polyrepo execution plan).
+func mcpFleetCore() []seedTask {
+	type spec struct {
+		kind, verb, what string
+	}
+	rows := []spec{
+		// S0 governance
+		{"governance", "merge", "Wave0 doc PRs merged; validate_catalog green"},
+		{"governance", "adr", "PhenoSpecs ADR-017 Accepted"},
+		{"governance", "adr", "PhenoSpecs ADR-018 Accepted"},
+		{"governance", "sync", "phenotype-registry DOMAIN_ROLES MCP row"},
+		{"governance", "registry", "PhenoMCPServers registry_version bump"},
+		// S1 SSOT
+		{"ssot", "spec", "specs/mcp/polyrepo-boundaries/spec.md"},
+		{"ssot", "skill", "skills/mcp-boundary-guard published"},
+		{"ssot", "skill", "skills/github-fork-policy published"},
+		{"ssot", "agent", "fleet-lead agent.yaml wires guard skills"},
+		{"ssot", "trace", "PhenoSpecs registry.yaml links ADR-017"},
+		// S2 framework
+		{"framework", "rust", "PhenoFastMCP-rust PHENO on main"},
+		{"framework", "rmcp", "PhenoRMCP spec SDK policy on main"},
+		{"framework", "py", "PhenoFastMCP phenotype/superset @ v3.4.2 branch"},
+		{"framework", "go", "PhenoFastMCP-go feat/phenotype-foundation merged"},
+		{"framework", "fork", "verify all fork:true parent links via gh api"},
+		// S3 servers
+		{"migration", "pheno-org", "migrate pheno-org tools from PhenoMCP issue #1"},
+		{"migration", "forge", "MCPForge in-tree or catalog active issue #2"},
+		{"migration", "ops", "ops-mcp in-tree issue #2"},
+		{"migration", "hexakit", "hexakit init mcp-server scaffold issue #3"},
+		{"migration", "substrate", "substrate server package tests CI green"},
+		// S4 retire
+		{"retire", "phenomcp", "PhenoMCP README redirect to PhenoMCPServers"},
+		{"retire", "mcpkit", "McpKit DEPRECATED banner to PhenoFastMCP"},
+		{"retire", "go-sdk", "phenotype-go-sdk shrink issue #7"},
+		{"retire", "substrate", "ADR-019 substrate trim duplicate driver-mcp"},
+		{"retire", "cheap-llm", "confirm no cheap-llm-mcp repo; substrate argv only"},
+		// S5 dogfood
+		{"dogfood", "bundle", "plugins/phenotype-bundle mcp.json wired"},
+		{"dogfood", "session", "fleet-lead agent run with zero loop count"},
+		{"dogfood", "metric", "session loop_events schema pilot"},
+		{"dogfood", "ci", "validate_catalog in PhenoMCPServers CI"},
+		{"dogfood", "phenodag", "mcp-fleet-60 preset seeded and pick/claim tested"},
+	}
+	out := make([]seedTask, len(rows))
+	for i, r := range rows {
+		stage := (i / 5) + 1
+		slot := (i % 5) + 1
+		id := fmt.Sprintf("eco-%03d", i+1)
+		desc := fmt.Sprintf("S%d %s: %s", stage, r.verb, r.what)
+		out[i] = seedTask{
+			ID: id, Desc: desc, Repo: "PhenoMCPServers", Sub: "", Kind: r.kind,
+			Stage: stage, Slot: slot, Priority: 5 + stage,
+		}
+	}
+	return out
+}
+
+// mcpFleetSide: 6 side-DAGs x 5 = 30 side tasks.
+func mcpFleetSide() []seedTask {
+	projects := []struct {
+		id, name, repo string
+		tasks          [5]string
+	}{
+		{"sd-fastrmcp", "FastRMCP eval", "PhenoFastMCP-rust", [5]string{"middleware audit", "SSE patterns", "cherry-pick plan", "ADR note", "close or defer"}},
+		{"sd-zigmojo", "Zig Mojo spike", "PhenoMCPServers", [5]string{"issue #8 triage", "fork parent candidates", "ADR draft", "registry stub", "defer gate"}},
+		{"sd-dagctl", "dagctl merge", "phenodag", [5]string{"ADR superset", "remoteclaim port", "preset tests", "release rc", "archive dagctl"}},
+		{"sd-agileplus", "AgilePlus MCP", "AgilePlus", [5]string{"eco-NNN map", "kitty-spec link", "agileplus-mcp audit", "traceability", "spec status"}},
+		{"sd-ts7", "TS7 binding", "HexaKit", [5]string{"template stub", "registry planned", "codegen sketch", "ADR ref", "defer impl"}},
+		{"sd-retire", "Legacy retire", "phenotype-registry", [5]string{"ECOSYSTEM_MAP", "McpKit row", "PhenoMCP row", "link check", "audit close"}},
+	}
+	out := []seedTask{}
+	for _, p := range projects {
+		for i, t := range p.tasks {
+			out = append(out, seedTask{
+				ID:       fmt.Sprintf("%s-%02d", p.id, i+1),
+				Desc:     fmt.Sprintf("%s: %s", p.name, t),
+				Repo:     p.repo,
+				Kind:     "side",
+				Stage:    0,
+				Slot:     0,
+				Priority: 3,
+				SideDAG:  p.id,
+			})
+		}
+	}
+	return out
+}
+
 func cmdSeed(args []string) error {
 	fs := flag.NewFlagSet("seed", flag.ExitOnError)
-	preset := fs.String("preset", "v3-180", "preset name (v3-180, melosviz-185, agileplus-50, tracera-50)")
+	preset := fs.String("preset", "v3-180", "preset name (v3-180, melosviz-185, agileplus-50, tracera-50, mcp-fleet-60)")
 	_ = fs.String("db", gDBPath, "path to SQLite DB")
 	fs.Parse(args)
 
@@ -708,8 +796,14 @@ func cmdSeed(args []string) error {
 		presetName = "tracera-50"
 		presetDesc = "tracera-50: 20 core (4 stages x 5 width) + 30 side (6 projects x 5)"
 		shape = "5x4 + 6 side-dags of 5"
+	case "mcp-fleet-60":
+		core = mcpFleetCore()
+		side = mcpFleetSide()
+		presetName = "mcp-fleet-60"
+		presetDesc = "mcp-fleet-60: 30 core (6 stages x 5 width) + 30 side (6 projects x 5)"
+		shape = "5x6 + 6 side-dags of 5"
 	default:
-		return fmt.Errorf("unknown preset %q (try v3-180, melosviz-185, agileplus-50, tracera-50)", *preset)
+		return fmt.Errorf("unknown preset %q (try v3-180, melosviz-185, agileplus-50, tracera-50, mcp-fleet-60)", *preset)
 	}
 
 	db, err := openDB(gDBPath)
@@ -752,6 +846,10 @@ func cmdSeed(args []string) error {
 		maxStage = 4
 		maxSlot = 5
 	}
+	if presetName == "mcp-fleet-60" {
+		maxStage = 6
+		maxSlot = 5
+	}
 	for stage := 1; stage < maxStage; stage++ {
 		for slot := 1; slot <= maxSlot; slot++ {
 			from := fmt.Sprintf("task-%02d-%02d", stage, slot)
@@ -766,7 +864,7 @@ func cmdSeed(args []string) error {
 	if presetName == "melosviz-185" {
 		sideDAGCount = 9
 	}
-	if presetName == "agileplus-50" || presetName == "tracera-50" {
+	if presetName == "agileplus-50" || presetName == "tracera-50" || presetName == "mcp-fleet-60" {
 		sideDAGCount = 6
 	}
 	for _, kv := range [][2]string{
