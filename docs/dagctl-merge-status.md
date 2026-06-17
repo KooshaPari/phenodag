@@ -14,8 +14,8 @@
 | **sd-dagctl-01** | ADR superset | **Done** | `docs/adr/ADR-dag-superset-merge.md` landed on `main`; status Accepted |
 | **sd-dagctl-02** | remoteclaim port | **Done** | `internal/remoteclaim/` + `remote-*` CLI commands on `main` |
 | **sd-dagctl-03** | preset tests | **Done (stubs)** | Unit stubs for `mcp-fleet-60` core/side shape + `sd-dagctl` IDs; integration pick/claim deferred |
-| **sd-dagctl-04** | release rc | **Deferred** | Cut `v1.0.0-rc.1` after superset PR #1 rebased/closed and README/changelog updated |
-| **sd-dagctl-05** | archive dagctl | **Deferred** | Requires final `v3.3.x` redirect README + GitHub archive action; repo still active |
+| **sd-dagctl-04** | release rc | **Done** | phenodag `v1.0.0-rc.1` tagged; dagctl README redirect |
+| **sd-dagctl-05** | archive dagctl | **Done** | GitHub archive after redirect README |
 
 ## dagctl repo inventory
 
