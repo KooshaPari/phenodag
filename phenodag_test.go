@@ -196,3 +196,84 @@ func TestTraceraSideHas30(t *testing.T) {
 		t.Errorf("traceraSide() distinct side-DAGs = %d, want 6", len(seen))
 	}
 }
+
+// --- v3 superset-merge tests ---
+
+func TestV3PortCoreHas120(t *testing.T) {
+	tasks := v3PortBuildCore()
+	if got := len(tasks); got != 120 {
+		t.Errorf("v3PortBuildCore() = %d tasks, want 120 (6 stages x 4 subprojects x 5 slots)", got)
+	}
+}
+
+func TestV3PortL7Has20(t *testing.T) {
+	tasks := v3PortL7Sustain2
+	if got := len(tasks); got != 20 {
+		t.Errorf("v3PortL7Sustain2 = %d tasks, want 20 (4 subprojects x 5 slots)", got)
+	}
+}
+
+func TestV3PortSideHas60(t *testing.T) {
+	tasks := v3PortBuildSide()
+	if got := len(tasks); got != 60 {
+		t.Errorf("v3PortBuildSide() = %d tasks, want 60 (12 side-DAGs x 5 slots)", got)
+	}
+}
+
+func TestV3PortExtend2Has35(t *testing.T) {
+	l8 := len(v3PortL8)
+	side := 0
+	for _, v := range v3PortSideExtend2 {
+		side += len(v)
+	}
+	total := l8 + side
+	if l8 != 20 {
+		t.Errorf("v3PortL8 = %d tasks, want 20", l8)
+	}
+	if total != 35 {
+		t.Errorf("extend2 total = %d (L8=%d + side=%d), want 35", total, l8, side)
+	}
+}
+
+func TestV3PortExtend3Has60(t *testing.T) {
+	l9 := len(v3PortL9)
+	l10 := len(v3PortL10)
+	side := 0
+	for _, v := range v3PortSideExtend3 {
+		side += len(v)
+	}
+	total := l9 + l10 + side
+	if l9 != 20 {
+		t.Errorf("v3PortL9 = %d tasks, want 20", l9)
+	}
+	if l10 != 20 {
+		t.Errorf("v3PortL10 = %d tasks, want 20", l10)
+	}
+	if total != 60 {
+		t.Errorf("extend3 total = %d (L9=%d + L10=%d + side=%d), want 60", total, l9, l10, side)
+	}
+}
+
+func TestSimHashStable(t *testing.T) {
+	a := simhash64Port("hello world")
+	b := simhash64Port("hello world")
+	if a != b {
+		t.Errorf("simhash64Port not stable: %x vs %x", a, b)
+	}
+	c := simhash64Port("totally different text")
+	if a == c {
+		t.Errorf("simhash64Port collides on distinct inputs: %x", a)
+	}
+}
+
+func TestHammingDistance(t *testing.T) {
+	if got := hammingDistancePort(0, 0); got != 0 {
+		t.Errorf("hamming(0,0) = %d, want 0", got)
+	}
+	if got := hammingDistancePort(0xFFFFFFFFFFFFFFFF, 0); got != 64 {
+		t.Errorf("hamming(all,0) = %d, want 64", got)
+	}
+	if got := hammingDistancePort(0xAAAAAAAAAAAAAAAA, 0xAAAAAAAAAAAAAAAA); got != 0 {
+		t.Errorf("hamming(self,self) = %d, want 0", got)
+	}
+}
