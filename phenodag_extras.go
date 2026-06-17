@@ -866,13 +866,10 @@ func cmdMermaidPort(args []string) error {
 		defer db.Close()
 		fmt.Println("```mermaid")
 		fmt.Println("flowchart LR")
-		rows, _ := db.Query("SELECT id, COALESCE(subproject,'') FROM tasks WHERE side_dag='' OR side_dag IS NULL ORDER BY id")
-		for rows.Next() {
-			var id, sub string
-			_ = rows.Scan(&id, &sub)
-			fmt.Printf("    %s[\"%s<br/>%s\"]\n", sanitizeIDPort(id), id, sub)
+		tasks := queryTasksWithSubproject(db)
+		for _, t := range tasks {
+			fmt.Printf("    %s[\"%s<br/>%s\"]\n", sanitizeIDPort(t.ID), t.ID, t.Subproject)
 		}
-		rows.Close()
 		rows, _ = db.Query("SELECT from_task, to_task FROM edges")
 		for rows.Next() {
 			var f, t string
@@ -986,13 +983,10 @@ func cmdTopoPort(args []string) error {
 		}
 		defer db.Close()
 		tasks := map[string]map[string]string{}
-		rows, _ := db.Query("SELECT id, stage, COALESCE(status,''), COALESCE(subproject,'') FROM tasks")
-		for rows.Next() {
-			var id, st, sub, status string
-			_ = rows.Scan(&id, &st, &status, &sub)
-			tasks[id] = map[string]string{"stage": st, "status": status, "sub": sub}
+		taskData := queryAllTasksDetails(db)
+		for _, t := range taskData {
+			tasks[t.ID] = map[string]string{"stage": fmt.Sprintf("%d", t.Stage), "status": t.Status, "sub": t.Subproject}
 		}
-		rows.Close()
 		edges := [][]string{}
 		rows, _ = db.Query("SELECT from_task, to_task FROM edges")
 		for rows.Next() {
@@ -1089,18 +1083,15 @@ func renderDashboardPort(dbPath string) {
 	fmt.Printf("Progress: %d%%  %s\n", pct, bar)
 	fmt.Printf("Total: %d  Done: %d  Ready: %d  InProgress: %d  Blocked: %d  Failed: %d\n\n",
 		total, done, ready, inprog, blocked, failed)
-	rows, _ := db.Query(`SELECT stage, COUNT(*), SUM(CASE WHEN status='done' THEN 1 ELSE 0 END) FROM tasks WHERE side_dag='' OR side_dag IS NULL GROUP BY stage ORDER BY stage`)
-	for rows.Next() {
-		var s, t, d int
-		_ = rows.Scan(&s, &t, &d)
+	stageSummary := queryTasksStageSummary(db)
+	for _, stage := range stageSummary {
 		p := 0
-		if t > 0 {
-			p = (d * 100) / t
+		if stage.Total > 0 {
+			p = (stage.Done * 100) / stage.Total
 		}
 		b := "[" + strings.Repeat("=", p/5) + strings.Repeat(" ", 20-p/5) + "]"
-		fmt.Printf("  L%d %s %3d%% (%d/%d)\n", s, b, p, d, t)
+		fmt.Printf("  L%d %s %3d%% (%d/%d)\n", stage.Stage, b, p, stage.Done, stage.Total)
 	}
-	rows.Close()
 }
 
 func cmdCSVPort(args []string) error {
@@ -1153,15 +1144,10 @@ func cmdHTMLPort(args []string) error {
 		tmpl := string(tmplBytes)
 		type node struct{ ID, Status, Sub, Stage string }
 		var nodes []node
-		rows, _ := db.Query("SELECT id, COALESCE(status,''), COALESCE(subproject,''), stage FROM tasks")
-		for rows.Next() {
-			var n node
-			var s int
-			_ = rows.Scan(&n.ID, &n.Status, &n.Sub, &s)
-			n.Stage = fmt.Sprintf("%d", s)
-			nodes = append(nodes, n)
+		taskData := queryAllTasksDetails(db)
+		for _, t := range taskData {
+			nodes = append(nodes, node{ID: t.ID, Status: t.Status, Sub: t.Subproject, Stage: fmt.Sprintf("%d", t.Stage)})
 		}
-		rows.Close()
 		type edge struct{ From, To string }
 		var edges []edge
 		rows, _ = db.Query("SELECT from_task, to_task FROM edges")
