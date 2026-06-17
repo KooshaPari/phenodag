@@ -145,12 +145,12 @@ func (s *SQLiteLeaseStore) Acquire(ctx context.Context, lease *Lease) error {
 		return err
 	}
 
-	// Insert the new lease
+	// Insert the new lease (store times as Unix timestamps)
 	_, err = s.db.ExecContext(ctx,
 		`INSERT INTO leases (id, kind, resource, state, chat_id, ttl_seconds, epoch_token, acquired_at, last_heartbeat, reason_kind, reason_value, coord_repo_path)
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		lease.ID, string(lease.Kind), lease.Resource, string(lease.State), lease.ChatID,
-		lease.TTLSeconds, lease.EpochToken, lease.AcquiredAt, lease.LastHeartbeat,
+		lease.TTLSeconds, lease.EpochToken, lease.AcquiredAt.Unix(), lease.LastHeartbeat.Unix(),
 		lease.Reason.Kind, lease.Reason.Value, lease.GitHubCoordPath)
 	if err != nil {
 		return fmt.Errorf("insert lease: %w", err)
@@ -166,10 +166,11 @@ func (s *SQLiteLeaseStore) Acquire(ctx context.Context, lease *Lease) error {
 
 // Heartbeat renews a lease (checks epoch fencing).
 func (s *SQLiteLeaseStore) Heartbeat(ctx context.Context, id string, chatID string, epoch int64) error {
-	now := time.Now()
+	now := time.Now().Unix()
+	// Update both last_heartbeat and epoch_token (new epoch prevents stale heartbeats)
 	result, err := s.db.ExecContext(ctx,
-		`UPDATE leases SET last_heartbeat=? WHERE id=? AND chat_id=? AND epoch_token=? AND state='active'`,
-		now, id, chatID, epoch)
+		`UPDATE leases SET last_heartbeat=?, epoch_token=? WHERE id=? AND chat_id=? AND epoch_token=? AND state='active'`,
+		now, now, id, chatID, epoch)
 	if err != nil {
 		return fmt.Errorf("heartbeat update: %w", err)
 	}
@@ -208,9 +209,9 @@ func (s *SQLiteLeaseStore) Release(ctx context.Context, id string, chatID string
 
 // ReapExpired returns all expired leases to the pool.
 func (s *SQLiteLeaseStore) ReapExpired(ctx context.Context) (int, error) {
-	now := time.Now()
+	now := time.Now().Unix()
 	result, err := s.db.ExecContext(ctx,
-		`UPDATE leases SET state=? WHERE state='active' AND datetime(last_heartbeat, '+' || ttl_seconds || ' seconds') < ?`,
+		`UPDATE leases SET state=? WHERE state='active' AND last_heartbeat + ttl_seconds < ?`,
 		string(LeaseStateExpired), now)
 	if err != nil {
 		return 0, fmt.Errorf("reap: %w", err)
@@ -252,11 +253,12 @@ func (s *SQLiteLeaseStore) Transfer(ctx context.Context, id string, oldChatID, n
 // Get retrieves a lease by ID.
 func (s *SQLiteLeaseStore) Get(ctx context.Context, id string) (*Lease, error) {
 	lease := &Lease{}
+	var acquiredAtUnix, lastHeartbeatUnix int64
 	err := s.db.QueryRowContext(ctx,
 		`SELECT id, kind, resource, state, chat_id, ttl_seconds, epoch_token, acquired_at, last_heartbeat, reason_kind, reason_value, coord_repo_path
 		 FROM leases WHERE id=?`,
 		id).Scan(&lease.ID, &lease.Kind, &lease.Resource, &lease.State, &lease.ChatID,
-		&lease.TTLSeconds, &lease.EpochToken, &lease.AcquiredAt, &lease.LastHeartbeat,
+		&lease.TTLSeconds, &lease.EpochToken, &acquiredAtUnix, &lastHeartbeatUnix,
 		&lease.Reason.Kind, &lease.Reason.Value, &lease.GitHubCoordPath)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -264,6 +266,10 @@ func (s *SQLiteLeaseStore) Get(ctx context.Context, id string) (*Lease, error) {
 		}
 		return nil, err
 	}
+
+	// Convert Unix timestamps back to time.Time
+	lease.AcquiredAt = time.Unix(acquiredAtUnix, 0)
+	lease.LastHeartbeat = time.Unix(lastHeartbeatUnix, 0)
 
 	return lease, nil
 }
@@ -303,12 +309,12 @@ func initLeaseSchema(db *sql.DB) error {
 			chat_id TEXT NOT NULL,
 			ttl_seconds INTEGER NOT NULL,
 			epoch_token INTEGER NOT NULL,
-			acquired_at TEXT NOT NULL,
-			last_heartbeat TEXT NOT NULL,
+			acquired_at INTEGER NOT NULL,
+			last_heartbeat INTEGER NOT NULL,
 			reason_kind TEXT,
 			reason_value TEXT,
 			coord_repo_path TEXT,
-			UNIQUE(resource, state) -- Only one active lease per resource
+			UNIQUE(resource, state)
 		)
 	`)
 	return err
