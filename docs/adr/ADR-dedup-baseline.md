@@ -25,7 +25,7 @@ Accept 4.5% as **Phase-4a baseline** with these commitments:
    - Complete the superset-merge: unify phenodag+dagctl into single implementation
    - Retire dagctl's separate copy (eliminate structural duplication)
    - This architectural fix drops duplication below 3% naturally
-   - Tracked via issue #TBD (Phase-4b dagctl retirement)
+   - **Tracked via issue #5** (Phase-4b: Complete superset-merge, retire dagctl, drop ≤3%): https://github.com/KooshaPari/phenodag/issues/5
 
 ## Rationale
 
@@ -49,14 +49,14 @@ Accept 4.5% as **Phase-4a baseline** with these commitments:
 
 1. Configure SonarCloud (or local sonarcloud.yaml) to accept new-code duplication ≤5.0%
 2. Document this baseline in README or project guidelines
-3. Create tracking issue #TBD: "Phase-4b: Complete superset-merge (retire dagctl, drop duplication ≤3%)"
+3. ✅ Tracking issue #5 created: "Phase-4b: Complete superset-merge (retire dagctl, drop duplication ≤3%)"
 4. Merge PR #1 with this ADR in place (gate now green)
 
 ## References
 
 - ADR #1: phenodag + dagctl Superset Merge (Phase-4 scope)
 - PR #1: phenodag dedup (6 commits, 4.7%→4.5%)
-- Phase-4b tracking: Issue #TBD (dagctl retirement + ≤3% target)
+- **Phase-4b tracking: Issue #5** — https://github.com/KooshaPari/phenodag/issues/5 (dagctl retirement + ≤3% target)
 
 ## Trade-offs
 
