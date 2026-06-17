@@ -233,6 +233,8 @@ func main() {
 		err = cmdMergePort(args)
 	case "next":
 		err = cmdNextPort(args)
+	case "claim-store":
+		err = cmdClaimStoreInfo(args)
 	case "version", "--version", "-v":
 		fmt.Printf("phenodag %s\n", version)
 		return

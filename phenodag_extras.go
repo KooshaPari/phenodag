@@ -13,21 +13,24 @@
 //   promote, remote-claim, remote-claims, remote-heartbeat, remote-reap,
 //   remote-release, remote-transfer, sweep, thrash, topo, where, worktree-claim.
 //
-// NOTE: This file is intentionally large (1480 lines) as an interim artifact
-// of the superset-merge integration (Phase 4). It will be refactored and split
-// into focused modules post-merge when dagctl is retired.
+// `claim-store` (the unified claim facade inspector) is in claim_bridge.go.
+//
+// Phase-4b (issue #5) refactor: the gantt / mermaid / csv / html /
+// burndown formatters now delegate to github.com/KooshaPari/phenodag/
+// internal/render so the same formatter is shared with phenodag's
+// main `cmdExport` and the cmd* funcs in this file. The remaining
+// cmd*Port funcs stay verbatim (the superset-merge ADR's "retire
+// nothing" rule). See docs/adr/ADR-dag-superset-merge.md and
+// docs/adr/ADR-dedup-baseline.md.
 package main
 
 import (
-	"bufio"
 	"context"
 	"database/sql"
 	"embed"
-	"encoding/csv"
 	"encoding/json"
 	"flag"
 	"fmt"
-	"io"
 	"math/rand"
 	"os"
 	"os/exec"
@@ -39,6 +42,7 @@ import (
 	"time"
 
 	"github.com/KooshaPari/phenodag/internal/remoteclaim"
+	"github.com/KooshaPari/phenodag/internal/render"
 )
 
 //go:embed dagctl_dag_template.html
@@ -810,76 +814,31 @@ func cmdGanttPort(args []string) error {
 			return err
 		}
 		defer db.Close()
-		rows, _ := db.Query(`SELECT id, stage, status FROM tasks WHERE (side_dag='' OR side_dag IS NULL) ORDER BY stage, id`)
-		var tasks []ganttTaskPort
-		for rows.Next() {
-			var t ganttTaskPort
-			_ = rows.Scan(&t.id, &t.stage, &t.status)
-			tasks = append(tasks, t)
+		tasks, err := render.LoadStageTasks(db)
+		if err != nil {
+			return err
 		}
-		rows.Close()
 		if *ascii {
-			printASCIIGanttPort(tasks)
-		} else {
-			printMermaidGanttPort(tasks)
+			return render.GanttASCII(os.Stdout, tasks)
 		}
-		return nil
+		return render.GanttMermaid(os.Stdout, tasks)
 	})
 }
 
 func printASCIIGanttPort(tasks []ganttTaskPort) {
-	byStage := map[int][]string{}
-	for _, t := range tasks {
-		byStage[t.stage] = append(byStage[t.stage], t.id)
-	}
-	stages := []int{}
-	for s := range byStage {
-		stages = append(stages, s)
-	}
-	sort.Ints(stages)
-	fmt.Println("Gantt (one row per stage):")
-	for _, s := range stages {
-		progress := 0
-		for _, t := range tasks {
-			if t.stage == s && t.status == "done" {
-				progress++
-			}
-		}
-		pct := 0
-		if len(byStage[s]) > 0 {
-			pct = (progress * 100) / len(byStage[s])
-		}
-		bar := strings.Repeat("=", pct/5) + strings.Repeat(" ", 20-pct/5)
-		fmt.Printf("L%d |%s| %d%% (%d/%d)\n", s, bar, pct, progress, len(byStage[s]))
-	}
+	_ = render.GanttASCII(os.Stdout, toStageTasks(tasks))
 }
 
 func printMermaidGanttPort(tasks []ganttTaskPort) {
-	w := bufio.NewWriter(os.Stdout)
-	defer w.Flush()
-	fmt.Fprintln(w, "```mermaid")
-	fmt.Fprintln(w, "gantt")
-	fmt.Fprintln(w, "    title phenodag Gantt")
-	fmt.Fprintln(w, "    dateFormat YYYY-MM-DD")
-	_, _ = io.WriteString(w, "    axisFormat %m-%d\n")
-	byStage := map[int][]string{}
-	for _, t := range tasks {
-		byStage[t.stage] = append(byStage[t.stage], t.id)
+	_ = render.GanttMermaid(os.Stdout, toStageTasks(tasks))
+}
+
+func toStageTasks(in []ganttTaskPort) []render.StageTask {
+	out := make([]render.StageTask, len(in))
+	for i, t := range in {
+		out[i] = render.StageTask{ID: t.id, Stage: t.stage, Status: t.status}
 	}
-	stages := []int{}
-	for s := range byStage {
-		stages = append(stages, s)
-	}
-	sort.Ints(stages)
-	base := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
-	for i, s := range stages {
-		fmt.Fprintf(w, "    section L%d\n", s)
-		for j, id := range byStage[s] {
-			start := base.AddDate(0, 0, i*5+j)
-			fmt.Fprintf(w, "        %-22s :a%d, %s, 1d\n", id, i*100+j, start.Format("2006-01-02"))
-		}
-	}
-	fmt.Fprintln(w, "```")
+	return out
 }
 
 func cmdMermaidPort(args []string) error {
@@ -892,38 +851,20 @@ func cmdMermaidPort(args []string) error {
 			return err
 		}
 		defer db.Close()
-		fmt.Println("```mermaid")
-		fmt.Println("flowchart LR")
-		rows, _ := db.Query("SELECT id, COALESCE(subproject,'') FROM tasks WHERE side_dag='' OR side_dag IS NULL ORDER BY id")
-		for rows.Next() {
-			var id, sub string
-			_ = rows.Scan(&id, &sub)
-			fmt.Printf("    %s[\"%s<br/>%s\"]\n", sanitizeIDPort(id), id, sub)
+		nodes, err := render.LoadMermaidNodes(db)
+		if err != nil {
+			return err
 		}
-		rows.Close()
-		rows, _ = db.Query("SELECT from_task, to_task FROM edges")
-		for rows.Next() {
-			var f, t string
-			_ = rows.Scan(&f, &t)
-			fmt.Printf("    %s --> %s\n", sanitizeIDPort(f), sanitizeIDPort(t))
+		edges, err := render.LoadEdges(db)
+		if err != nil {
+			return err
 		}
-		rows.Close()
-		fmt.Println("```")
-		return nil
+		return render.MermaidFlowchart(os.Stdout, nodes, edges)
 	})
 }
 
 func sanitizeIDPort(s string) string {
-	out := make([]byte, 0, len(s))
-	for i := 0; i < len(s); i++ {
-		c := s[i]
-		if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') {
-			out = append(out, c)
-		} else {
-			out = append(out, '_')
-		}
-	}
-	return string(out)
+	return render.SanitizeID(s)
 }
 
 func cmdBurndownPort(args []string) error {
@@ -939,20 +880,7 @@ func cmdBurndownPort(args []string) error {
 		var total, done int
 		_ = db.QueryRow("SELECT COUNT(*) FROM tasks WHERE side_dag='' OR side_dag IS NULL").Scan(&total)
 		_ = db.QueryRow("SELECT COUNT(*) FROM tasks WHERE status='done' AND (side_dag='' OR side_dag IS NULL)").Scan(&done)
-		pending := total - done
-		fmt.Printf("Burndown (total=%d, done=%d, pending=%d):\n", total, done, pending)
-		const width = 50
-		bars := width
-		if total > 0 {
-			bars = (pending * width) / total
-		}
-		fmt.Println("[" + strings.Repeat("#", bars) + strings.Repeat(" ", width-bars) + "]")
-		pct := 0
-		if total > 0 {
-			pct = (done * 100) / total
-		}
-		fmt.Printf("Progress: %d%%\n", pct)
-		return nil
+		return render.Burndown(os.Stdout, total, done)
 	})
 }
 
@@ -1142,22 +1070,18 @@ func cmdCSVPort(args []string) error {
 			return err
 		}
 		defer db.Close()
+		rows, err := render.LoadCSVRows(db)
+		if err != nil {
+			return err
+		}
 		f, err := os.Create(*out)
 		if err != nil {
 			return err
 		}
 		defer f.Close()
-		w := csv.NewWriter(f)
-		defer w.Flush()
-		_ = w.Write([]string{"id", "stage", "slot", "status", "subproject", "category", "kind", "priority", "description"})
-		rows, _ := db.Query(`SELECT id, stage, slot, status, COALESCE(subproject,''), COALESCE(category,''), COALESCE(kind,''), COALESCE(priority,0), description FROM tasks ORDER BY stage, id`)
-		for rows.Next() {
-			var id, status, sub, cat, kind, desc string
-			var stage, slot, prio int
-			_ = rows.Scan(&id, &stage, &slot, &status, &sub, &cat, &kind, &prio, &desc)
-			_ = w.Write([]string{id, fmt.Sprintf("%d", stage), fmt.Sprintf("%d", slot), status, sub, cat, kind, fmt.Sprintf("%d", prio), desc})
+		if err := render.WriteCSV(f, rows); err != nil {
+			return err
 		}
-		rows.Close()
 		fmt.Printf("Exported CSV: %s\n", *out)
 		return nil
 	})
@@ -1178,31 +1102,18 @@ func cmdHTMLPort(args []string) error {
 		if err != nil {
 			return err
 		}
-		tmpl := string(tmplBytes)
-		type node struct{ ID, Status, Sub, Stage string }
-		var nodes []node
-		rows, _ := db.Query("SELECT id, COALESCE(status,''), COALESCE(subproject,''), stage FROM tasks")
-		for rows.Next() {
-			var n node
-			var s int
-			_ = rows.Scan(&n.ID, &n.Status, &n.Sub, &s)
-			n.Stage = fmt.Sprintf("%d", s)
-			nodes = append(nodes, n)
+		nodes, err := render.LoadHTMLNodes(db)
+		if err != nil {
+			return err
 		}
-		rows.Close()
-		type edge struct{ From, To string }
-		var edges []edge
-		rows, _ = db.Query("SELECT from_task, to_task FROM edges")
-		for rows.Next() {
-			var e edge
-			_ = rows.Scan(&e.From, &e.To)
-			edges = append(edges, e)
+		edges, err := render.LoadHTMLEdges(db)
+		if err != nil {
+			return err
 		}
-		rows.Close()
-		nodesJSON, _ := json.Marshal(nodes)
-		edgesJSON, _ := json.Marshal(edges)
-		tmpl = strings.Replace(tmpl, "{{NODES}}", string(nodesJSON), 1)
-		tmpl = strings.Replace(tmpl, "{{EDGES}}", string(edgesJSON), 1)
+		tmpl, err := render.SubstituteTemplate(string(tmplBytes), nodes, edges)
+		if err != nil {
+			return err
+		}
 		if err := os.WriteFile(*out, []byte(tmpl), 0644); err != nil {
 			return err
 		}

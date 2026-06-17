@@ -46,14 +46,26 @@ go build -mod=mod -o phenodag ./cmd/phenodag
 phenodag (this binary)
   ├── internal/store     — SQLite (modernc.org/sqlite, pure Go) + POSIX flock
   ├── internal/similarity — hybrid: token-Jaccard × 0.6 + Levenshtein × 0.2 + repo × 0.2
-  ├── internal/claim     — repo + branch + worktree claim store, PK on resource
+  ├── internal/remoteclaim — TTL + epoch + local/github transport (dagctl)
+  ├── internal/claim     — unified claim facade (Phase-4b; remoteclaim + gh_repo_lease)
+  ├── internal/render    — shared gantt/mermaid/csv/html/burndown formatters (Phase-4b)
+  ├── internal/dagops    — shared Open / Migrate / OpenLocked DB helper (Phase-4b)
   ├── internal/preset    — YAML loader (presets/v3-180.yaml, presets/empty.yaml)
   ├── internal/scan      — repo scanner (mangled-git + no-git tolerant)
   ├── internal/backfill  — side-DAG → gap promotion
   ├── internal/bd        — `bd` (beads) CLI wrapper, JSON over stdio (optional)
   ├── internal/graph     — DAG ops (ready/blocked/unblock, ingest, export)
-  └── cmd/phenodag       — CLI router (init/seed/status/validate/pick/claim/release/heartbeat/done/fail/fill/scan/dupes/export)
+  └── cmd/phenodag       — CLI router (init/seed/status/validate/pick/claim/release/heartbeat/done/fail/fill/scan/dupes/export + 38+ merged dagctl commands)
 ```
+
+Phase-4b (issue #5) unified the dagctl superset-merge: the formerly
+verbatim `phenodag_extras.go` formatters now share `internal/render/`,
+the 30× `withLock → openDB → migrate → defer Close` pattern lives in
+`internal/dagops/`, and the three coexisting claim systems
+(phenodag local / dagctl-remoteclaim / gh-repo-lease) route through the
+`internal/claim/` facade. See
+[docs/adr/ADR-dedup-baseline.md](docs/adr/ADR-dedup-baseline.md) and
+[docs/adr/ADR-dag-superset-merge.md](docs/adr/ADR-dag-superset-merge.md).
 
 ## Width × Length
 

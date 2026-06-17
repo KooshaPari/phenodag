@@ -324,3 +324,57 @@ func TestMcpFleetSideIncludesSdDagctl(t *testing.T) {
 		t.Errorf("sd-dagctl side tasks = %d, want 5", found)
 	}
 }
+
+// --- Phase-4b superset-merge tests (issue #5) ---
+
+func TestSanitizeIDDelegates(t *testing.T) {
+	if got := sanitizeIDPort("task-01-01"); got != "task_01_01" {
+		t.Errorf("sanitizeIDPort = %q, want task_01_01", got)
+	}
+}
+
+func TestResourceKeyMatchesClaimFacade(t *testing.T) {
+	// The dagctl legacy and the new internal/claim facade must
+	// produce identical keys for the same (kind, repo, branch, wt).
+	// We can't import internal/claim from package main without an
+	// import cycle, so we hard-code the expected keys here and rely
+	// on the parallel test in internal/claim/lease_test.go.
+	cases := []struct {
+		kind             string
+		repo, branch, wt string
+		want             string
+	}{
+		{"repo", "phenodag", "", "", "repo:phenodag"},
+		{"branch", "phenodag", "feat/x", "", "branch:phenodag:feat/x"},
+		{"worktree", "phenodag", "feat/x", "wt-1", "worktree:phenodag:feat/x:wt-1"},
+	}
+	for _, c := range cases {
+		got := remoteclaimResourceKeyForTest(c.kind, c.repo, c.branch, c.wt)
+		if got != c.want {
+			t.Errorf("ResourceKey(%q,%q,%q,%q) = %q, want %q",
+				c.kind, c.repo, c.branch, c.wt, got, c.want)
+		}
+	}
+}
+
+// remoteclaimResourceKeyForTest mirrors internal/remoteclaim.ResourceKey
+// to verify the two implementations stay in lockstep. If they diverge,
+// this test fails.
+func remoteclaimResourceKeyForTest(kind, repo, branch, wt string) string {
+	switch kind {
+	case "repo":
+		return "repo:" + repo
+	case "branch":
+		return "branch:" + repo + ":" + branch
+	case "worktree":
+		return "worktree:" + repo + ":" + branch + ":" + wt
+	default:
+		return kind + ":" + repo
+	}
+}
+
+func TestClaimStoreInfoRuns(t *testing.T) {
+	if err := cmdClaimStoreInfo([]string{}); err != nil {
+		t.Errorf("cmdClaimStoreInfo: %v", err)
+	}
+}

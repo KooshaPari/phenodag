@@ -16,6 +16,7 @@
 | **sd-dagctl-03** | preset tests | **Done (stubs)** | Unit stubs for `mcp-fleet-60` core/side shape + `sd-dagctl` IDs; integration pick/claim deferred |
 | **sd-dagctl-04** | release rc | **Deferred** | Cut `v1.0.0-rc.1` after superset PR #1 rebased/closed and README/changelog updated |
 | **sd-dagctl-05** | archive dagctl | **Deferred** | Requires final `v3.3.x` redirect README + GitHub archive action; repo still active |
+| **sd-dagctl-06** | Phase-4b superset-merge | **Done** | Shared `internal/render/` formatters + `internal/dagops/` DB helper + `internal/claim/` facade; `cmdClaimStoreInfo` for the unified surface; gantt/mermaid/csv/html/burndown refactored to share the new packages. See [ADR-dedup-baseline.md](./adr/ADR-dedup-baseline.md). |
 
 ## dagctl repo inventory
 
@@ -32,15 +33,20 @@ These dagctl capabilities are **merged** into phenodag via PR #2 and the superse
 | Capability | phenodag location |
 | --- | --- |
 | `internal/remoteclaim` package | `internal/remoteclaim/*.go` + tests |
+| `internal/render/` formatters (gantt/mermaid/csv/html/burndown) | `internal/render/{render,gantt,mermaid,csv_html}.go` (Phase-4b) |
+| `internal/dagops/` DB helper (Open / Migrate / OpenLocked) | `internal/dagops/dagops.go` (Phase-4b) |
+| `internal/claim/` unified claim facade | `internal/claim/{claim,remote,lease}.go` (Phase-4b) |
 | Remote claim CLI (`remote-claim`, `remote-heartbeat`, …) | `phenodag_extras.go` |
+| `claim-store` (unified-claim inspector) | `claim_bridge.go` (Phase-4b) |
 | v3 engine (`seed3`, `extend3-v2`, `extend3-v3`) | `phenodag_v3.go` |
 | Meta commands (`worktree-claim`, `agent-stats`, `diff`, `critical-path`) | `phenodag_extras.go` |
 | Test/maintenance (`doctor`, `thrash`, `sweep`, `dispatch`) | `phenodag_extras.go` |
-| Viz (`gantt`, `mermaid`, `burndown`, `dashboard`, `csv`, `html`) | `phenodag_extras.go` |
+| Viz (`gantt`, `mermaid`, `burndown`, `dashboard`, `csv`, `html`) | `phenodag_extras.go` (now via `internal/render`) |
 | Dedup extras (`dedup-explain`, simhash) | `phenodag_dedup2.go` |
 | Task ops (`add`, `merge`, `next`, `where`, `topo`, `promote`, `completion`) | `phenodag_extras.go` |
 | HTML template embed | `dagctl_dag_template.html` |
 | Superset merge ADR | `docs/adr/ADR-dag-superset-merge.md` |
+| Dedup baseline / Phase-4b ADR | `docs/adr/ADR-dedup-baseline.md` |
 
 ## Defer (post-rc or next phase)
 
