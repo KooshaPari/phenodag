@@ -32,7 +32,7 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-const version = "0.3.0"
+const version = "1.0.0-rc.1"
 
 var gDBPath = "phenodag.db"
 
@@ -749,9 +749,174 @@ func mcpFleetSide() []seedTask {
 	return out
 }
 
+// mcpFleet90Core: 6 stages x 15 width = 90 core tasks (post-fleet-60 depth wave).
+func mcpFleet90Core() []seedTask {
+	type spec struct {
+		kind, verb, what string
+	}
+	rows := []spec{
+		// S1 governance (eco-001..015)
+		{"governance", "merge", "Wave0 doc PRs merged; validate_catalog green"},
+		{"governance", "adr", "PhenoSpecs ADR-017 Accepted"},
+		{"governance", "adr", "PhenoSpecs ADR-018 Accepted"},
+		{"governance", "sync", "phenotype-registry DOMAIN_ROLES MCP row"},
+		{"governance", "registry", "PhenoMCPServers registry_version bump"},
+		{"governance", "adr", "PhenoSpecs ADR-019 Accepted"},
+		{"governance", "handbook", "PhenoHandbook Wave1E MCP convention pages"},
+		{"governance", "map", "phenotype-registry ECOSYSTEM_MAP cluster L"},
+		{"governance", "links", "phenotype-registry ECOSYSTEM_MAP URL validation"},
+		{"governance", "index", "PhenoSpecs registry.yaml ADR-017 links"},
+		{"governance", "archive", "McpKit GitHub archive"},
+		{"governance", "archive", "PhenoMCP GitHub archive verify"},
+		{"governance", "policy", "catalog banned-pattern CI gate"},
+		{"governance", "metrics", "session-metrics weekly burndown baseline"},
+		{"governance", "preset", "mcp-fleet-60 complete; seed fleet-90"},
+		// S2 SSOT (eco-016..030)
+		{"ssot", "spec", "specs/mcp/polyrepo-boundaries/spec.md"},
+		{"ssot", "skill", "skills/mcp-boundary-guard published"},
+		{"ssot", "skill", "skills/github-fork-policy published"},
+		{"ssot", "agent", "fleet-lead agent.yaml wires guard skills"},
+		{"ssot", "trace", "PhenoSpecs registry.yaml links ADR-017"},
+		{"ssot", "skill", "skills/language-tier-picker published"},
+		{"ssot", "skill", "skills/catalog-wiring published"},
+		{"ssot", "skill", "skills/phenodag-claim published"},
+		{"ssot", "skill", "skills/substrate-vs-servers published"},
+		{"ssot", "spec", "specs/mcp/agent-pre-flight/spec.md"},
+		{"ssot", "spec", "specs/mcp/catalog-wiring/spec.md"},
+		{"ssot", "agent", "fleet-lead wires full Wave3 skill suite"},
+		{"ssot", "handbook", "anti-patterns mirror-to-empty linked"},
+		{"ssot", "handbook", "anti-patterns language-bucket-sdk linked"},
+		{"ssot", "dogfood", "docs/DOGFOOD.md fleet-lead ritual"},
+		// S3 framework (eco-031..045)
+		{"framework", "rust", "PhenoFastMCP-rust PHENO on main"},
+		{"framework", "rmcp", "PhenoRMCP spec SDK policy on main"},
+		{"framework", "py", "PhenoFastMCP phenotype/superset @ v3.4.2 branch"},
+		{"framework", "go", "PhenoFastMCP-go phenotype/superset merged"},
+		{"framework", "fork", "verify all fork:true parent links via gh api"},
+		{"framework", "py", "superset anthropic sampling series cherry-pick"},
+		{"framework", "go", "superset sampling-with-tools f01a0707 cherry-pick"},
+		{"framework", "rust", "superset monitor upstream post-v0.3.1"},
+		{"framework", "rmcp", "track rmcp-v* release tags"},
+		{"framework", "py", "superset-triage doc on phenotype/superset"},
+		{"framework", "go", "superset-triage doc on phenotype/superset"},
+		{"framework", "rust", "FastRMCP eval closed documented"},
+		{"framework", "go", "CORS b4d0bf5c verified in baseline"},
+		{"framework", "py", "superset-merge issue for sampling series"},
+		{"framework", "fork", "quarterly fork_parent gh api audit"},
+		// S4 servers (eco-046..060)
+		{"migration", "pheno-org", "migrate pheno-org tools from PhenoMCP issue #1"},
+		{"migration", "forge", "MCPForge in-tree or catalog active issue #2"},
+		{"migration", "ops", "ops-mcp in-tree issue #2"},
+		{"migration", "hexakit", "hexakit init mcp-server scaffold issue #3"},
+		{"migration", "substrate", "substrate server package tests CI green"},
+		{"migration", "pheno-org", "pheno-org tests in catalog CI green"},
+		{"migration", "forge", "MCPForge EDGE-JUSTIFICATION.md"},
+		{"migration", "ops", "ops-mcp EDGE-JUSTIFICATION.md"},
+		{"migration", "bundle", "agileplus-mcp-intent in fleet-lead bundle"},
+		{"migration", "hexakit", "mcp-server-ts7 template stub validated"},
+		{"migration", "substrate", "check_driver_mcp_sync in CI"},
+		{"migration", "catalog", "registry_version 1.3.0 bump post-wave"},
+		{"migration", "submodule", "external Go submodules pin audit"},
+		{"migration", "pheno-org", "pheno-org asyncio tests Python 3.12+ fix"},
+		{"migration", "plugin", "phenotype-bundle mcp.json agileplus wiring"},
+		// S5 retire (eco-061..075)
+		{"retire", "phenomcp", "PhenoMCP README redirect to PhenoMCPServers"},
+		{"retire", "mcpkit", "McpKit DEPRECATED banner to PhenoFastMCP"},
+		{"retire", "go-sdk", "phenotype-go-sdk shrink issue #7"},
+		{"retire", "substrate", "ADR-019 substrate trim duplicate driver-mcp"},
+		{"retire", "cheap-llm", "confirm no cheap-llm-mcp repo; substrate argv only"},
+		{"retire", "mcpkit", "McpKit repo archived on GitHub"},
+		{"retire", "registry", "cheap-llm-mcp validator strings retired"},
+		{"retire", "dispatch", "dispatch-mcp absorbed into substrate confirm"},
+		{"retire", "go-sdk", "phenotype-go-sdk archive evaluation"},
+		{"retire", "substrate", "driver-mcp SYNC.md cross-linked"},
+		{"retire", "agentmcp", "AgentMCP patterns absorb doc"},
+		{"retire", "map", "ECOSYSTEM_MAP legacy MCP rows audit"},
+		{"retire", "dagctl", "dagctl redirect README before archive"},
+		{"retire", "substrate", "driver-mcp removal gate ADR-019"},
+		{"retire", "handbook", "retired repo routing in PhenoHandbook"},
+		// S6 dogfood + CI (eco-076..090)
+		{"dogfood", "bundle", "plugins/phenotype-bundle mcp.json wired"},
+		{"dogfood", "session", "fleet-lead agent run with zero loop count"},
+		{"dogfood", "metric", "session loop_events schema pilot"},
+		{"dogfood", "ci", "validate_catalog in PhenoMCPServers CI"},
+		{"dogfood", "phenodag", "mcp-fleet-60 preset seeded and pick/claim tested"},
+		{"dogfood", "phenodag", "mcp-fleet-90 preset seeded"},
+		{"dogfood", "session", "live dogfood session metrics filed"},
+		{"dogfood", "ci", "validate_stale_patterns in catalog CI"},
+		{"dogfood", "ci", "validate_fork_parents in catalog CI"},
+		{"dogfood", "skills", "fleet-lead full skill suite dogfood"},
+		{"dogfood", "metric", "session burndown script or phenodag burndown"},
+		{"dogfood", "ci", "substrate pytest in catalog workflow"},
+		{"dogfood", "phenodag", "pick/claim integration test for fleet preset"},
+		{"dogfood", "horizon", "ADR-020 zig-mojo draft filed"},
+		{"dogfood", "close", "mcp-fleet-90 first wave tasks marked done"},
+	}
+	const width = 15
+	out := make([]seedTask, len(rows))
+	for i, r := range rows {
+		stage := (i / width) + 1
+		slot := (i % width) + 1
+		id := fmt.Sprintf("eco-%03d", i+1)
+		desc := fmt.Sprintf("S%d %s: %s", stage, r.verb, r.what)
+		out[i] = seedTask{
+			ID: id, Desc: desc, Repo: "PhenoMCPServers", Sub: "", Kind: r.kind,
+			Stage: stage, Slot: slot, Priority: 5 + stage,
+		}
+	}
+	return out
+}
+
+// mcpFleet90Side: 12 side-DAGs x 5 = 60 side tasks.
+func mcpFleet90Side() []seedTask {
+	projects := []struct {
+		id, name, repo string
+		tasks          [5]string
+	}{
+		{"sd-fastrmcp", "FastRMCP eval", "PhenoFastMCP-rust", [5]string{"middleware audit", "SSE patterns", "cherry-pick plan", "ADR note", "close or defer"}},
+		{"sd-zigmojo", "Zig Mojo spike", "PhenoMCPServers", [5]string{"issue #8 triage", "fork parent candidates", "ADR draft", "registry stub", "defer gate"}},
+		{"sd-dagctl", "dagctl merge", "phenodag", [5]string{"ADR superset", "remoteclaim port", "preset tests", "release rc", "archive dagctl"}},
+		{"sd-agileplus", "AgilePlus MCP", "AgilePlus", [5]string{"eco-NNN map", "kitty-spec link", "agileplus-mcp audit", "traceability", "spec status"}},
+		{"sd-ts7", "TS7 binding", "HexaKit", [5]string{"template stub", "registry planned", "codegen sketch", "ADR ref", "defer impl"}},
+		{"sd-retire", "Legacy retire", "phenotype-registry", [5]string{"ECOSYSTEM_MAP", "McpKit row", "PhenoMCP row", "link check", "audit close"}},
+		{"sd-py-superset", "Py superset", "PhenoFastMCP", [5]string{"triage doc", "anthropic series", "pytest gate", "merge issue", "promote eval"}},
+		{"sd-go-superset", "Go superset", "PhenoFastMCP-go", [5]string{"triage doc", "CORS verify", "sampling pick", "go test gate", "promote eval"}},
+		{"sd-rmcp", "PhenoRMCP track", "PhenoRMCP", [5]string{"rmcp-v tag", "conformance subset", "POLICY audit", "upstream sync", "release note"}},
+		{"sd-skills-ci", "Skills CI", "PhenoMCPServers", [5]string{"wave3 skills", "fleet-lead wire", "validate_catalog", "bundle test", "dogfood ritual"}},
+		{"sd-horizon2", "Horizon gates", "PhenoMCPServers", [5]string{"ADR-020", "agileplus bundle", "McpKit archive", "TS7 defer", "substrate trim gate"}},
+		{"sd-fleet90", "Fleet90 ops", "phenodag", [5]string{"seed preset", "fill gaps", "pick smoke", "export md", "burndown"}},
+	}
+	out := []seedTask{}
+	for _, p := range projects {
+		for i, t := range p.tasks {
+			out = append(out, seedTask{
+				ID:       fmt.Sprintf("%s-%02d", p.id, i+1),
+				Desc:     fmt.Sprintf("%s: %s", p.name, t),
+				Repo:     p.repo,
+				Kind:     "side",
+				Stage:    0,
+				Slot:     0,
+				Priority: 3,
+				SideDAG:  p.id,
+			})
+		}
+	}
+	return out
+}
+
+func seedMcpFleetEdges(estmt *sql.Stmt, maxStage, width int, idFmt func(stage, slot int) string) {
+	for stage := 1; stage < maxStage; stage++ {
+		for slot := 1; slot <= width; slot++ {
+			from := idFmt(stage, slot)
+			to := idFmt(stage+1, slot)
+			_, _ = estmt.Exec(from, to)
+		}
+	}
+}
+
 func cmdSeed(args []string) error {
 	fs := flag.NewFlagSet("seed", flag.ExitOnError)
-	preset := fs.String("preset", "v3-180", "preset name (v3-180, melosviz-185, agileplus-50, tracera-50, mcp-fleet-60)")
+	preset := fs.String("preset", "v3-180", "preset name (v3-180, melosviz-185, agileplus-50, tracera-50, mcp-fleet-60, mcp-fleet-90)")
 	_ = fs.String("db", gDBPath, "path to SQLite DB")
 	fs.Parse(args)
 
@@ -802,8 +967,14 @@ func cmdSeed(args []string) error {
 		presetName = "mcp-fleet-60"
 		presetDesc = "mcp-fleet-60: 30 core (6 stages x 5 width) + 30 side (6 projects x 5)"
 		shape = "5x6 + 6 side-dags of 5"
+	case "mcp-fleet-90":
+		core = mcpFleet90Core()
+		side = mcpFleet90Side()
+		presetName = "mcp-fleet-90"
+		presetDesc = "mcp-fleet-90: 90 core (6 stages x 15 width) + 60 side (12 projects x 5)"
+		shape = "15x6 + 12 side-dags of 5"
 	default:
-		return fmt.Errorf("unknown preset %q (try v3-180, melosviz-185, agileplus-50, tracera-50, mcp-fleet-60)", *preset)
+		return fmt.Errorf("unknown preset %q (try v3-180, melosviz-185, agileplus-50, tracera-50, mcp-fleet-60, mcp-fleet-90)", *preset)
 	}
 
 	db, err := openDB(gDBPath)
@@ -849,12 +1020,24 @@ func cmdSeed(args []string) error {
 	if presetName == "mcp-fleet-60" {
 		maxStage = 6
 		maxSlot = 5
+		seedMcpFleetEdges(estmt, maxStage, maxSlot, func(stage, slot int) string {
+			return fmt.Sprintf("eco-%03d", (stage-1)*maxSlot+slot)
+		})
 	}
-	for stage := 1; stage < maxStage; stage++ {
-		for slot := 1; slot <= maxSlot; slot++ {
-			from := fmt.Sprintf("task-%02d-%02d", stage, slot)
-			to := fmt.Sprintf("task-%02d-%02d", stage+1, slot)
-			_, _ = estmt.Exec(from, to)
+	if presetName == "mcp-fleet-90" {
+		maxStage = 6
+		maxSlot = 15
+		seedMcpFleetEdges(estmt, maxStage, maxSlot, func(stage, slot int) string {
+			return fmt.Sprintf("eco-%03d", (stage-1)*maxSlot+slot)
+		})
+	}
+	if presetName != "mcp-fleet-60" && presetName != "mcp-fleet-90" {
+		for stage := 1; stage < maxStage; stage++ {
+			for slot := 1; slot <= maxSlot; slot++ {
+				from := fmt.Sprintf("task-%02d-%02d", stage, slot)
+				to := fmt.Sprintf("task-%02d-%02d", stage+1, slot)
+				_, _ = estmt.Exec(from, to)
+			}
 		}
 	}
 	if err := tx.Commit(); err != nil {
@@ -866,6 +1049,9 @@ func cmdSeed(args []string) error {
 	}
 	if presetName == "agileplus-50" || presetName == "tracera-50" || presetName == "mcp-fleet-60" {
 		sideDAGCount = 6
+	}
+	if presetName == "mcp-fleet-90" {
+		sideDAGCount = 12
 	}
 	for _, kv := range [][2]string{
 		{"preset", presetName},
