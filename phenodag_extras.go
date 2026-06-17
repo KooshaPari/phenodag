@@ -454,22 +454,8 @@ func cmdDiffPort(args []string) error {
 			return err
 		}
 		defer otherDB.Close()
-		cur := map[string]string{}
-		rows, _ := db.Query("SELECT id, status FROM tasks")
-		for rows.Next() {
-			var id, status string
-			_ = rows.Scan(&id, &status)
-			cur[id] = status
-		}
-		rows.Close()
-		otherMap := map[string]string{}
-		rows, _ = otherDB.Query("SELECT id, status FROM tasks")
-		for rows.Next() {
-			var id, status string
-			_ = rows.Scan(&id, &status)
-			otherMap[id] = status
-		}
-		rows.Close()
+		cur := queryTasksIDStatus(db)
+		otherMap := queryTasksIDStatus(otherDB)
 		var added, removed, changed int
 		for id, status := range cur {
 			if o, ok := otherMap[id]; !ok {
@@ -504,14 +490,11 @@ func cmdCriticalPathPort(args []string) error {
 		defer db.Close()
 		adj := map[string][]string{}
 		indeg := map[string]int{}
-		rows, _ := db.Query("SELECT id FROM tasks")
-		for rows.Next() {
-			var id string
-			_ = rows.Scan(&id)
+		taskIDs := queryTaskIDs(db)
+		for _, id := range taskIDs {
 			indeg[id] = 0
 		}
-		rows.Close()
-		rows, _ = db.Query("SELECT from_task, to_task FROM edges")
+		rows, _ := db.Query("SELECT from_task, to_task FROM edges")
 		for rows.Next() {
 			var f, t string
 			_ = rows.Scan(&f, &t)
@@ -709,14 +692,7 @@ func cmdSweepPort(args []string) error {
 		removed := 0
 		// Requeue failed tasks older than 24h (phenodag stores status in tasks; no failures table).
 		threshold := time.Now().UTC().Add(-24 * time.Hour).Format(time.RFC3339)
-		rows, _ := db.Query("SELECT id FROM tasks WHERE status='failed' AND updated_at < ?", threshold)
-		var requeue []string
-		for rows.Next() {
-			var t string
-			_ = rows.Scan(&t)
-			requeue = append(requeue, t)
-		}
-		rows.Close()
+		requeue := queryFailedTasksBeforeThreshold(db, threshold)
 		if !*dryRun {
 			for _, t := range requeue {
 				_, _ = db.Exec("UPDATE tasks SET status='ready', assigned_agent='', updated_at=? WHERE id=?",
@@ -809,14 +785,11 @@ func cmdGanttPort(args []string) error {
 			return err
 		}
 		defer db.Close()
-		rows, _ := db.Query(`SELECT id, stage, status FROM tasks WHERE (side_dag='' OR side_dag IS NULL) ORDER BY stage, id`)
+		taskData := queryTasksMainDAG(db)
 		var tasks []ganttTaskPort
-		for rows.Next() {
-			var t ganttTaskPort
-			_ = rows.Scan(&t.id, &t.stage, &t.status)
-			tasks = append(tasks, t)
+		for _, t := range taskData {
+			tasks = append(tasks, ganttTaskPort{id: t.ID, stage: t.Stage, status: t.Status})
 		}
-		rows.Close()
 		if *ascii {
 			printASCIIGanttPort(tasks)
 		} else {
