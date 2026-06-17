@@ -1,11 +1,13 @@
 # ADR: phenodag + dagctl SUPERSET merge
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-06-16
 - **Repos:**
   - `phenodag` — `C:/Users/koosh/Dev/phenodag` (this repo), v0.3.0
   - `dagctl` — `C:/Users/koosh/Dev/dagctl`, v3.2.0
 - **Driver:** superset union; **retire nothing**
+- **Author:** KooshaPari <kooshapari@gmail.com>
+- **Co-author:** Claude Opus 4.8 <noreply@anthropic.com>
 
 ## Context
 
