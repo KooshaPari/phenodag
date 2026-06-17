@@ -277,3 +277,57 @@ func TestHammingDistance(t *testing.T) {
 		t.Errorf("hamming(self,self) = %d, want 0", got)
 	}
 }
+
+func TestMcpFleet90CoreHas90(t *testing.T) {
+	tasks := mcpFleet90Core()
+	if got := len(tasks); got != 90 {
+		t.Errorf("mcpFleet90Core() = %d tasks, want 90 (6 stages x 15 width)", got)
+	}
+	for i, x := range tasks {
+		wantStage := (i / 15) + 1
+		if x.Stage != wantStage {
+			t.Errorf("task[%d] stage = %d, want %d", i, x.Stage, wantStage)
+		}
+		if x.Stage > 6 {
+			t.Errorf("task[%d] stage = %d exceeds max stage 6", i, x.Stage)
+		}
+	}
+}
+
+func TestMcpFleet90SideHas60(t *testing.T) {
+	tasks := mcpFleet90Side()
+	if got := len(tasks); got != 60 {
+		t.Errorf("mcpFleet90Side() = %d tasks, want 60 (12 side-DAGs x 5)", got)
+	}
+	seen := map[string]bool{}
+	for _, x := range tasks {
+		seen[x.SideDAG] = true
+	}
+	if len(seen) != 12 {
+		t.Errorf("mcpFleet90Side() distinct side-DAGs = %d, want 12", len(seen))
+	}
+}
+
+func TestMcpFleet90PickClaim(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := dir + "/fleet90.db"
+	old := gDBPath
+	gDBPath = dbPath
+	t.Cleanup(func() { gDBPath = old })
+
+	if err := cmdInit([]string{"--width", "15", "--stages", "6", "--force"}); err != nil {
+		t.Fatalf("init: %v", err)
+	}
+	if err := cmdSeed([]string{"--preset", "mcp-fleet-90"}); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	if err := cmdValidate([]string{}); err != nil {
+		t.Fatalf("validate: %v", err)
+	}
+	if err := cmdPick([]string{"--agent", "test-agent"}); err != nil {
+		t.Fatalf("pick: %v", err)
+	}
+	if err := cmdDone([]string{"--agent", "test-agent", "--task", "eco-001"}); err != nil {
+		t.Fatalf("done: %v", err)
+	}
+}
