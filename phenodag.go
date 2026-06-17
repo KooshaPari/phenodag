@@ -171,6 +171,68 @@ func main() {
 		err = cmdDupes(args)
 	case "export":
 		err = cmdExport(args)
+	case "seed3":
+		err = cmdSeed3(args)
+	case "extend3-v2":
+		err = cmdExtend3V2(args)
+	case "extend3-v3":
+		err = cmdExtend3V3(args)
+	case "dedup-explain":
+		err = cmdDedupExplainPort(args)
+	case "remote-claim":
+		err = cmdRemoteClaimPort(args)
+	case "remote-heartbeat":
+		err = cmdRemoteHeartbeatPort(args)
+	case "remote-release":
+		err = cmdRemoteReleasePort(args)
+	case "remote-claims":
+		err = cmdRemoteClaimsPort(args)
+	case "remote-reap":
+		err = cmdRemoteReapPort(args)
+	case "remote-transfer":
+		err = cmdRemoteTransferPort(args)
+	case "worktree-claim":
+		err = cmdWorktreeClaimPort(args)
+	case "agent-stats":
+		err = cmdAgentStatsPort(args)
+	case "diff":
+		err = cmdDiffPort(args)
+	case "critical-path":
+		err = cmdCriticalPathPort(args)
+	case "doctor":
+		err = cmdDoctorPort(args)
+	case "thrash":
+		err = cmdThrashPort(args)
+	case "sweep":
+		err = cmdSweepPort(args)
+	case "dispatch":
+		err = cmdDispatchPort(args)
+	case "gantt":
+		err = cmdGanttPort(args)
+	case "mermaid":
+		err = cmdMermaidPort(args)
+	case "burndown":
+		err = cmdBurndownPort(args)
+	case "where":
+		err = cmdWherePort(args)
+	case "topo":
+		err = cmdTopoPort(args)
+	case "dashboard":
+		err = cmdDashboardPort(args)
+	case "csv":
+		err = cmdCSVPort(args)
+	case "html":
+		err = cmdHTMLPort(args)
+	case "promote":
+		err = cmdPromotePort(args)
+	case "completion":
+		err = cmdCompletionPort(args)
+	case "add":
+		err = cmdAddPort(args)
+	case "merge":
+		err = cmdMergePort(args)
+	case "next":
+		err = cmdNextPort(args)
 	case "version", "--version", "-v":
 		fmt.Printf("phenodag %s\n", version)
 		return

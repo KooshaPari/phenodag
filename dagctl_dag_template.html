@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>FLEET DAG</title>
+<style>
+  body { font-family: -apple-system, sans-serif; margin: 0; padding: 16px; background: #fafbfc; color: #222; }
+  h1 { margin: 0 0 12px 0; font-size: 18px; }
+  #controls { position: sticky; top: 0; background: #fff; padding: 8px; border-bottom: 1px solid #eee; z-index: 10; }
+  #canvas { width: 100%; height: 80vh; border: 1px solid #eee; background: #fff; position: relative; overflow: auto; }
+  .node { position: absolute; width: 80px; height: 36px; border: 1.5px solid #888; border-radius: 4px; padding: 4px; font-size: 10px; text-align: center; cursor: move; user-select: none; }
+  .node[data-status="done"] { background: #c8e6c9; border-color: #2e7d32; }
+  .node[data-status="in_progress"] { background: #fff9c4; border-color: #f9a825; }
+  .node[data-status="failed"] { background: #ffcdd2; border-color: #c62828; }
+  .node[data-status="ready"] { background: #e1f5fe; border-color: #0277bd; }
+  .node[data-status="blocked"] { background: #f5f5f5; border-color: #999; }
+  .edge { position: absolute; pointer-events: none; }
+  .legend { font-size: 11px; margin-top: 8px; }
+  .legend span { display: inline-block; padding: 2px 6px; margin-right: 6px; border-radius: 3px; }
+</style>
+</head>
+<body>
+<h1>FLEET DAG</h1>
+<div id="controls">
+  <label><input type="checkbox" id="show-edges" checked> edges</label>
+  <label><input type="checkbox" id="show-ids" checked> ids</label>
+  <span id="stats" style="margin-left: 12px; font-size: 12px; color: #555;"></span>
+</div>
+<div id="canvas"></div>
+<div class="legend">
+  <span style="background:#c8e6c9">done</span>
+  <span style="background:#fff9c4">in_progress</span>
+  <span style="background:#e1f5fe">ready</span>
+  <span style="background:#f5f5f5">blocked</span>
+  <span style="background:#ffcdd2">failed</span>
+</div>
+<script>
+const NODES = {{NODES}};
+const EDGES = {{EDGES}};
+const canvas = document.getElementById('canvas');
+const stageCount = {};
+NODES.forEach(n => { stageCount[n.stage] = (stageCount[n.stage] || 0) + 1; });
+const stageWidth = 220;
+const stageHeights = {};
+let totalRows = 0;
+Object.keys(stageCount).forEach(s => {
+  stageHeights[s] = stageCount[s] * 50 + 40;
+  totalRows = Math.max(totalRows, stageCount[s]);
+});
+canvas.style.height = (totalRows * 50 + 80) + 'px';
+const positions = {};
+NODES.forEach(n => {
+  const stageNodes = NODES.filter(x => x.stage === n.stage);
+  const idx = stageNodes.findIndex(x => x.id === n.id);
+  positions[n.id] = { x: 20 + (parseInt(n.stage) - 1) * stageWidth, y: 20 + idx * 50 };
+});
+NODES.forEach(n => {
+  const div = document.createElement('div');
+  div.className = 'node';
+  div.dataset.status = n.status;
+  div.style.left = positions[n.id].x + 'px';
+  div.style.top = positions[n.id].y + 'px';
+  div.innerHTML = '<b>' + n.id + '</b><br/>' + (n.sub || '').slice(0, 12);
+  div.draggable = true;
+  let dragOffset = null;
+  div.addEventListener('mousedown', e => { dragOffset = { x: e.offsetX, y: e.offsetY }; });
+  div.addEventListener('mousemove', e => {
+    if (dragOffset) {
+      div.style.left = (e.clientX - canvas.offsetLeft - dragOffset.x) + 'px';
+      div.style.top = (e.clientY - canvas.offsetTop - dragOffset.y) + 'px';
+      positions[n.id] = { x: parseInt(div.style.left), y: parseInt(div.style.top) };
+      redrawEdges();
+    }
+  });
+  div.addEventListener('mouseup', () => { dragOffset = null; });
+  canvas.appendChild(div);
+});
+function redrawEdges() {
+  document.querySelectorAll('.edge').forEach(e => e.remove());
+  if (!document.getElementById('show-edges').checked) return;
+  EDGES.forEach(e => {
+    const a = positions[e.from], b = positions[e.to];
+    if (!a || !b) return;
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('class', 'edge');
+    svg.style.position = 'absolute';
+    svg.style.left = Math.min(a.x + 40, b.x + 40) + 'px';
+    svg.style.top = Math.min(a.y + 18, b.y + 18) + 'px';
+    svg.style.width = Math.abs(b.x - a.x) + 'px';
+    svg.style.height = Math.abs(b.y - a.y) + 'px';
+    svg.style.overflow = 'visible';
+    svg.style.pointerEvents = 'none';
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    line.setAttribute('x1', a.x < b.x ? 80 : 0);
+    line.setAttribute('y1', a.y < b.y ? 18 : (b.y < a.y ? 0 : 18));
+    line.setAttribute('x2', a.x < b.x ? 0 : 80);
+    line.setAttribute('y2', a.y < b.y ? 0 : (b.y < a.y ? 18 : 18));
+    line.setAttribute('stroke', '#888');
+    line.setAttribute('stroke-width', '1');
+    svg.appendChild(line);
+    canvas.appendChild(svg);
+  });
+}
+document.getElementById('show-edges').addEventListener('change', redrawEdges);
+redrawEdges();
+document.getElementById('stats').textContent = NODES.length + ' nodes, ' + EDGES.length + ' edges';
+</script>
+</body>
+</html>
