@@ -183,6 +183,4 @@ dagctl names for one major version for downstream scripts.
 ## Decision record
 
 - **2026-06-16**: ADR proposed on `feat/dag-superset-merge`.
-- **2026-06-16**: ADR Accepted; Phase 1 package adoption landed on `main`.
-- **2026-06-17**: sd-dagctl pool (tasks 01–03) complete; 04–05 deferred per
-  [dagctl-merge-status.md](../dagctl-merge-status.md).
+- **Pending review**: maintainer sign-off before Phase 1 begins.

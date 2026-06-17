@@ -1,5 +1,4 @@
 // nolint:dupl,funlen,gocyclop,gocognit
-// //noinspection ALL
 // phenodag_extras.go — dagctl meta/viz/test/extras/remote-claim ports.
 //
 // Ported from C:/Users/koosh/Dev/dagctl/*.go on 2026-06-16 for the
@@ -417,20 +416,12 @@ func cmdAgentStatsPort(args []string) error {
 			return err
 		}
 		defer db.Close()
-		// Some agent columns may not exist on older phenodag DBs; use safe COALESCE.
-		rows, err := db.Query(`SELECT id, COALESCE(status,''), COALESCE(last_seen,'') FROM agents ORDER BY id`)
-		if err != nil {
-			return err
-		}
-		defer rows.Close()
+		agents := queryAgents(db)
 		fmt.Printf("%-24s %-10s %-22s %-8s %-8s\n", "AGENT", "STATUS", "LAST_SEEN", "DONE", "FAILED")
-		for rows.Next() {
-			var id, status, lastSeen string
-			_ = rows.Scan(&id, &status, &lastSeen)
-			var done, failed int
-			_ = db.QueryRow(`SELECT COUNT(*) FROM tasks WHERE assigned_agent=? AND status='done'`, id).Scan(&done)
-			_ = db.QueryRow(`SELECT COUNT(*) FROM tasks WHERE assigned_agent=? AND status='failed'`, id).Scan(&failed)
-			fmt.Printf("%-24s %-10s %-22s %-8d %-8d\n", id, status, lastSeen, done, failed)
+		for _, agent := range agents {
+			done := queryTaskCountByAgent(db, agent.ID, "done")
+			failed := queryTaskCountByAgent(db, agent.ID, "failed")
+			fmt.Printf("%-24s %-10s %-22s %-8d %-8d\n", agent.ID, agent.Status, agent.LastSeen, done, failed)
 		}
 		return nil
 	})
@@ -455,22 +446,8 @@ func cmdDiffPort(args []string) error {
 			return err
 		}
 		defer otherDB.Close()
-		cur := map[string]string{}
-		rows, _ := db.Query("SELECT id, status FROM tasks")
-		for rows.Next() {
-			var id, status string
-			_ = rows.Scan(&id, &status)
-			cur[id] = status
-		}
-		rows.Close()
-		otherMap := map[string]string{}
-		rows, _ = otherDB.Query("SELECT id, status FROM tasks")
-		for rows.Next() {
-			var id, status string
-			_ = rows.Scan(&id, &status)
-			otherMap[id] = status
-		}
-		rows.Close()
+		cur := queryTasksIDStatus(db)
+		otherMap := queryTasksIDStatus(otherDB)
 		var added, removed, changed int
 		for id, status := range cur {
 			if o, ok := otherMap[id]; !ok {
@@ -505,21 +482,15 @@ func cmdCriticalPathPort(args []string) error {
 		defer db.Close()
 		adj := map[string][]string{}
 		indeg := map[string]int{}
-		rows, _ := db.Query("SELECT id FROM tasks")
-		for rows.Next() {
-			var id string
-			_ = rows.Scan(&id)
+		taskIDs := queryTaskIDs(db)
+		for _, id := range taskIDs {
 			indeg[id] = 0
 		}
-		rows.Close()
-		rows, _ = db.Query("SELECT from_task, to_task FROM edges")
-		for rows.Next() {
-			var f, t string
-			_ = rows.Scan(&f, &t)
-			adj[f] = append(adj[f], t)
-			indeg[t]++
+		edges := queryEdges(db)
+		for _, e := range edges {
+			adj[e.From] = append(adj[e.From], e.To)
+			indeg[e.To]++
 		}
-		rows.Close()
 		dist := map[string]int{}
 		prev := map[string]string{}
 		queue := []string{}
@@ -709,15 +680,8 @@ func cmdSweepPort(args []string) error {
 		defer db.Close()
 		removed := 0
 		// Requeue failed tasks older than 24h (phenodag stores status in tasks; no failures table).
-		threshold := time.Now().UTC().Add(-24 * time.Hour).Format(time.RFC3339)
-		rows, _ := db.Query("SELECT id FROM tasks WHERE status='failed' AND updated_at < ?", threshold)
-		var requeue []string
-		for rows.Next() {
-			var t string
-			_ = rows.Scan(&t)
-			requeue = append(requeue, t)
-		}
-		rows.Close()
+		threshold := time.Now().UTC().Add(-24 * time.Hour).Unix()
+		requeue := queryFailedTasksBeforeThreshold(db, threshold)
 		if !*dryRun {
 			for _, t := range requeue {
 				_, _ = db.Exec("UPDATE tasks SET status='ready', assigned_agent='', updated_at=? WHERE id=?",
@@ -810,14 +774,11 @@ func cmdGanttPort(args []string) error {
 			return err
 		}
 		defer db.Close()
-		rows, _ := db.Query(`SELECT id, stage, status FROM tasks WHERE (side_dag='' OR side_dag IS NULL) ORDER BY stage, id`)
+		taskData := queryTasksMainDAG(db)
 		var tasks []ganttTaskPort
-		for rows.Next() {
-			var t ganttTaskPort
-			_ = rows.Scan(&t.id, &t.stage, &t.status)
-			tasks = append(tasks, t)
+		for _, t := range taskData {
+			tasks = append(tasks, ganttTaskPort{id: t.ID, stage: t.Stage, status: t.Status})
 		}
-		rows.Close()
 		if *ascii {
 			printASCIIGanttPort(tasks)
 		} else {
@@ -894,20 +855,14 @@ func cmdMermaidPort(args []string) error {
 		defer db.Close()
 		fmt.Println("```mermaid")
 		fmt.Println("flowchart LR")
-		rows, _ := db.Query("SELECT id, COALESCE(subproject,'') FROM tasks WHERE side_dag='' OR side_dag IS NULL ORDER BY id")
-		for rows.Next() {
-			var id, sub string
-			_ = rows.Scan(&id, &sub)
-			fmt.Printf("    %s[\"%s<br/>%s\"]\n", sanitizeIDPort(id), id, sub)
+		tasks := queryTasksWithSubproject(db)
+		for _, t := range tasks {
+			fmt.Printf("    %s[\"%s<br/>%s\"]\n", sanitizeIDPort(t.ID), t.ID, t.Subproject)
 		}
-		rows.Close()
-		rows, _ = db.Query("SELECT from_task, to_task FROM edges")
-		for rows.Next() {
-			var f, t string
-			_ = rows.Scan(&f, &t)
-			fmt.Printf("    %s --> %s\n", sanitizeIDPort(f), sanitizeIDPort(t))
+		edges := queryEdges(db)
+		for _, e := range edges {
+			fmt.Printf("    %s --> %s\n", sanitizeIDPort(e.From), sanitizeIDPort(e.To))
 		}
-		rows.Close()
 		fmt.Println("```")
 		return nil
 	})
@@ -1014,21 +969,15 @@ func cmdTopoPort(args []string) error {
 		}
 		defer db.Close()
 		tasks := map[string]map[string]string{}
-		rows, _ := db.Query("SELECT id, stage, COALESCE(status,''), COALESCE(subproject,'') FROM tasks")
-		for rows.Next() {
-			var id, st, sub, status string
-			_ = rows.Scan(&id, &st, &status, &sub)
-			tasks[id] = map[string]string{"stage": st, "status": status, "sub": sub}
+		taskData := queryAllTasksDetails(db)
+		for _, t := range taskData {
+			tasks[t.ID] = map[string]string{"stage": fmt.Sprintf("%d", t.Stage), "status": t.Status, "sub": t.Subproject}
 		}
-		rows.Close()
+		edgeData := queryEdges(db)
 		edges := [][]string{}
-		rows, _ = db.Query("SELECT from_task, to_task FROM edges")
-		for rows.Next() {
-			var f, t string
-			_ = rows.Scan(&f, &t)
-			edges = append(edges, []string{f, t})
+		for _, e := range edgeData {
+			edges = append(edges, []string{e.From, e.To})
 		}
-		rows.Close()
 		switch *format {
 		case "dot":
 			fmt.Println("digraph phenodag {")
@@ -1099,13 +1048,13 @@ func renderDashboardPort(dbPath string) {
 		return
 	}
 	defer db.Close()
-	var total, done, inprog, failed, ready, blocked int
-	_ = db.QueryRow("SELECT COUNT(*) FROM tasks").Scan(&total)
-	_ = db.QueryRow("SELECT COUNT(*) FROM tasks WHERE status='done'").Scan(&done)
-	_ = db.QueryRow("SELECT COUNT(*) FROM tasks WHERE status='in_progress'").Scan(&inprog)
-	_ = db.QueryRow("SELECT COUNT(*) FROM tasks WHERE status='failed'").Scan(&failed)
-	_ = db.QueryRow("SELECT COUNT(*) FROM tasks WHERE status='ready'").Scan(&ready)
-	_ = db.QueryRow("SELECT COUNT(*) FROM tasks WHERE status='blocked'").Scan(&blocked)
+	counts := queryTaskCountsByStatus(db)
+	total := counts["total"]
+	done := counts["done"]
+	inprog := counts["in_progress"]
+	failed := counts["failed"]
+	ready := counts["ready"]
+	blocked := counts["blocked"]
 	now := time.Now().Format("15:04:05")
 	fmt.Printf("phenodag Dashboard [%s]\n", now)
 	fmt.Println(strings.Repeat("-", 60))
@@ -1117,18 +1066,15 @@ func renderDashboardPort(dbPath string) {
 	fmt.Printf("Progress: %d%%  %s\n", pct, bar)
 	fmt.Printf("Total: %d  Done: %d  Ready: %d  InProgress: %d  Blocked: %d  Failed: %d\n\n",
 		total, done, ready, inprog, blocked, failed)
-	rows, _ := db.Query(`SELECT stage, COUNT(*), SUM(CASE WHEN status='done' THEN 1 ELSE 0 END) FROM tasks WHERE side_dag='' OR side_dag IS NULL GROUP BY stage ORDER BY stage`)
-	for rows.Next() {
-		var s, t, d int
-		_ = rows.Scan(&s, &t, &d)
+	stageSummary := queryTasksStageSummary(db)
+	for _, stage := range stageSummary {
 		p := 0
-		if t > 0 {
-			p = (d * 100) / t
+		if stage.Total > 0 {
+			p = (stage.Done * 100) / stage.Total
 		}
 		b := "[" + strings.Repeat("=", p/5) + strings.Repeat(" ", 20-p/5) + "]"
-		fmt.Printf("  L%d %s %3d%% (%d/%d)\n", s, b, p, d, t)
+		fmt.Printf("  L%d %s %3d%% (%d/%d)\n", stage.Stage, b, p, stage.Done, stage.Total)
 	}
-	rows.Close()
 }
 
 func cmdCSVPort(args []string) error {
@@ -1150,14 +1096,10 @@ func cmdCSVPort(args []string) error {
 		w := csv.NewWriter(f)
 		defer w.Flush()
 		_ = w.Write([]string{"id", "stage", "slot", "status", "subproject", "category", "kind", "priority", "description"})
-		rows, _ := db.Query(`SELECT id, stage, slot, status, COALESCE(subproject,''), COALESCE(category,''), COALESCE(kind,''), COALESCE(priority,0), description FROM tasks ORDER BY stage, id`)
-		for rows.Next() {
-			var id, status, sub, cat, kind, desc string
-			var stage, slot, prio int
-			_ = rows.Scan(&id, &stage, &slot, &status, &sub, &cat, &kind, &prio, &desc)
-			_ = w.Write([]string{id, fmt.Sprintf("%d", stage), fmt.Sprintf("%d", slot), status, sub, cat, kind, fmt.Sprintf("%d", prio), desc})
+		tasks := queryTasksWithAllFields(db)
+		for _, t := range tasks {
+			_ = w.Write([]string{t.ID, fmt.Sprintf("%d", t.Stage), fmt.Sprintf("%d", t.Slot), t.Status, t.Subproject, t.Category, t.Kind, fmt.Sprintf("%d", t.Priority), t.Description})
 		}
-		rows.Close()
 		fmt.Printf("Exported CSV: %s\n", *out)
 		return nil
 	})
@@ -1181,24 +1123,16 @@ func cmdHTMLPort(args []string) error {
 		tmpl := string(tmplBytes)
 		type node struct{ ID, Status, Sub, Stage string }
 		var nodes []node
-		rows, _ := db.Query("SELECT id, COALESCE(status,''), COALESCE(subproject,''), stage FROM tasks")
-		for rows.Next() {
-			var n node
-			var s int
-			_ = rows.Scan(&n.ID, &n.Status, &n.Sub, &s)
-			n.Stage = fmt.Sprintf("%d", s)
-			nodes = append(nodes, n)
+		taskData := queryAllTasksDetails(db)
+		for _, t := range taskData {
+			nodes = append(nodes, node{ID: t.ID, Status: t.Status, Sub: t.Subproject, Stage: fmt.Sprintf("%d", t.Stage)})
 		}
-		rows.Close()
 		type edge struct{ From, To string }
+		edgeData := queryEdges(db)
 		var edges []edge
-		rows, _ = db.Query("SELECT from_task, to_task FROM edges")
-		for rows.Next() {
-			var e edge
-			_ = rows.Scan(&e.From, &e.To)
-			edges = append(edges, e)
+		for _, e := range edgeData {
+			edges = append(edges, edge{From: e.From, To: e.To})
 		}
-		rows.Close()
 		nodesJSON, _ := json.Marshal(nodes)
 		edgesJSON, _ := json.Marshal(edges)
 		tmpl = strings.Replace(tmpl, "{{NODES}}", string(nodesJSON), 1)
