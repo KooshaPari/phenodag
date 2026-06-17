@@ -16,3 +16,6 @@ phenodag
 # Go
 *.test
 *.out
+
+phenodag.exe
+
