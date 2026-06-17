@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	_ "github.com/mattn/go-sqlite3"
 )
 
 // LeaseKind mirrors AgilePlus ClaimKind for repo-level resources.
