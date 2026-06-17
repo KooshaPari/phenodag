@@ -292,3 +292,132 @@ func queryEdges(db *sql.DB) []struct {
 	}
 	return result
 }
+
+// queryAgents queries all agents with their status and last_seen timestamp.
+func queryAgents(db *sql.DB) []struct {
+	ID       string
+	Status   string
+	LastSeen string
+} {
+	var result []struct {
+		ID       string
+		Status   string
+		LastSeen string
+	}
+	rows, err := db.Query(`SELECT id, COALESCE(status,''), COALESCE(last_seen,'') FROM agents ORDER BY id`)
+	if err != nil {
+		log.Printf("queryAgents: %v", err)
+		return result
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id, status, lastSeen string
+		if err := rows.Scan(&id, &status, &lastSeen); err != nil {
+			log.Printf("queryAgents Scan: %v", err)
+			continue
+		}
+		result = append(result, struct {
+			ID       string
+			Status   string
+			LastSeen string
+		}{id, status, lastSeen})
+	}
+	return result
+}
+
+// queryTaskCountByAgent counts tasks in a given status for an agent.
+func queryTaskCountByAgent(db *sql.DB, agentID, status string) int {
+	var count int
+	err := db.QueryRow(`SELECT COUNT(*) FROM tasks WHERE assigned_agent=? AND status=?`, agentID, status).Scan(&count)
+	if err != nil {
+		log.Printf("queryTaskCountByAgent: %v", err)
+	}
+	return count
+}
+
+// queryTasksWithAllFields queries all tasks with all available fields.
+func queryTasksWithAllFields(db *sql.DB) []struct {
+	ID          string
+	Stage       int
+	Slot        int
+	Status      string
+	Subproject  string
+	Category    string
+	Kind        string
+	Priority    int
+	Description string
+} {
+	var result []struct {
+		ID          string
+		Stage       int
+		Slot        int
+		Status      string
+		Subproject  string
+		Category    string
+		Kind        string
+		Priority    int
+		Description string
+	}
+	rows, err := db.Query(`SELECT id, stage, slot, status, COALESCE(subproject,''), COALESCE(category,''), COALESCE(kind,''), COALESCE(priority,0), description FROM tasks ORDER BY stage, id`)
+	if err != nil {
+		log.Printf("queryTasksWithAllFields: %v", err)
+		return result
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id, status, sp, cat, kind, desc string
+		var stage, slot, priority int
+		if err := rows.Scan(&id, &stage, &slot, &status, &sp, &cat, &kind, &priority, &desc); err != nil {
+			log.Printf("queryTasksWithAllFields Scan: %v", err)
+			continue
+		}
+		result = append(result, struct {
+			ID          string
+			Stage       int
+			Slot        int
+			Status      string
+			Subproject  string
+			Category    string
+			Kind        string
+			Priority    int
+			Description string
+		}{id, stage, slot, status, sp, cat, kind, priority, desc})
+	}
+	return result
+}
+
+// queryTasksByStageWithDescription queries tasks in a stage with descriptions.
+func queryTasksByStageWithDescription(db *sql.DB) []struct {
+	ID          string
+	Stage       int
+	Subproject  string
+	Description string
+} {
+	var result []struct {
+		ID          string
+		Stage       int
+		Subproject  string
+		Description string
+	}
+	rows, err := db.Query(`SELECT id, stage, COALESCE(subproject,''), description FROM tasks WHERE (side_dag='' OR side_dag IS NULL) ORDER BY stage, id`)
+	if err != nil {
+		log.Printf("queryTasksByStageWithDescription: %v", err)
+		return result
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id, sp, desc string
+		var stage int
+		if err := rows.Scan(&id, &stage, &sp, &desc); err != nil {
+			log.Printf("queryTasksByStageWithDescription Scan: %v", err)
+			continue
+		}
+		result = append(result, struct {
+			ID          string
+			Stage       int
+			Subproject  string
+			Description string
+		}{id, stage, sp, desc})
+	}
+	return result
+}

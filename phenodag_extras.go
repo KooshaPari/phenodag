@@ -416,20 +416,12 @@ func cmdAgentStatsPort(args []string) error {
 			return err
 		}
 		defer db.Close()
-		// Some agent columns may not exist on older phenodag DBs; use safe COALESCE.
-		rows, err := db.Query(`SELECT id, COALESCE(status,''), COALESCE(last_seen,'') FROM agents ORDER BY id`)
-		if err != nil {
-			return err
-		}
-		defer rows.Close()
+		agents := queryAgents(db)
 		fmt.Printf("%-24s %-10s %-22s %-8s %-8s\n", "AGENT", "STATUS", "LAST_SEEN", "DONE", "FAILED")
-		for rows.Next() {
-			var id, status, lastSeen string
-			_ = rows.Scan(&id, &status, &lastSeen)
-			var done, failed int
-			_ = db.QueryRow(`SELECT COUNT(*) FROM tasks WHERE assigned_agent=? AND status='done'`, id).Scan(&done)
-			_ = db.QueryRow(`SELECT COUNT(*) FROM tasks WHERE assigned_agent=? AND status='failed'`, id).Scan(&failed)
-			fmt.Printf("%-24s %-10s %-22s %-8d %-8d\n", id, status, lastSeen, done, failed)
+		for _, agent := range agents {
+			done := queryTaskCountByAgent(db, agent.ID, "done")
+			failed := queryTaskCountByAgent(db, agent.ID, "failed")
+			fmt.Printf("%-24s %-10s %-22s %-8d %-8d\n", agent.ID, agent.Status, agent.LastSeen, done, failed)
 		}
 		return nil
 	})
@@ -1104,14 +1096,10 @@ func cmdCSVPort(args []string) error {
 		w := csv.NewWriter(f)
 		defer w.Flush()
 		_ = w.Write([]string{"id", "stage", "slot", "status", "subproject", "category", "kind", "priority", "description"})
-		rows, _ := db.Query(`SELECT id, stage, slot, status, COALESCE(subproject,''), COALESCE(category,''), COALESCE(kind,''), COALESCE(priority,0), description FROM tasks ORDER BY stage, id`)
-		for rows.Next() {
-			var id, status, sub, cat, kind, desc string
-			var stage, slot, prio int
-			_ = rows.Scan(&id, &stage, &slot, &status, &sub, &cat, &kind, &prio, &desc)
-			_ = w.Write([]string{id, fmt.Sprintf("%d", stage), fmt.Sprintf("%d", slot), status, sub, cat, kind, fmt.Sprintf("%d", prio), desc})
+		tasks := queryTasksWithAllFields(db)
+		for _, t := range tasks {
+			_ = w.Write([]string{t.ID, fmt.Sprintf("%d", t.Stage), fmt.Sprintf("%d", t.Slot), t.Status, t.Subproject, t.Category, t.Kind, fmt.Sprintf("%d", t.Priority), t.Description})
 		}
-		rows.Close()
 		fmt.Printf("Exported CSV: %s\n", *out)
 		return nil
 	})
