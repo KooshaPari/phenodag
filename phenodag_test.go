@@ -277,3 +277,50 @@ func TestHammingDistance(t *testing.T) {
 		t.Errorf("hamming(self,self) = %d, want 0", got)
 	}
 }
+
+// --- mcp-fleet-60 preset stubs (sd-dagctl-03) ---
+
+func TestMcpFleetCoreHas30(t *testing.T) {
+	tasks := mcpFleetCore()
+	if got := len(tasks); got != 30 {
+		t.Errorf("mcpFleetCore() = %d tasks, want 30 (6 stages x 5 width)", got)
+	}
+	stagesSeen := map[int]bool{}
+	for _, x := range tasks {
+		stagesSeen[x.Stage] = true
+	}
+	if len(stagesSeen) != 6 {
+		t.Errorf("mcpFleetCore() stages = %d, want 6 unique", len(stagesSeen))
+	}
+}
+
+func TestMcpFleetSideHas30(t *testing.T) {
+	tasks := mcpFleetSide()
+	if got := len(tasks); got != 30 {
+		t.Errorf("mcpFleetSide() = %d tasks, want 30 (6 side-DAGs x 5)", got)
+	}
+	seen := map[string]bool{}
+	for _, x := range tasks {
+		seen[x.SideDAG] = true
+	}
+	if len(seen) != 6 {
+		t.Errorf("mcpFleetSide() distinct side-DAGs = %d, want 6", len(seen))
+	}
+}
+
+func TestMcpFleetSideIncludesSdDagctl(t *testing.T) {
+	tasks := mcpFleetSide()
+	var found int
+	for _, x := range tasks {
+		if x.SideDAG != "sd-dagctl" {
+			continue
+		}
+		found++
+		if !strings.HasPrefix(x.ID, "sd-dagctl-") {
+			t.Errorf("sd-dagctl task id %q missing sd-dagctl- prefix", x.ID)
+		}
+	}
+	if found != 5 {
+		t.Errorf("sd-dagctl side tasks = %d, want 5", found)
+	}
+}
