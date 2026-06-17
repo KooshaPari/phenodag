@@ -167,10 +167,11 @@ func (s *SQLiteLeaseStore) Acquire(ctx context.Context, lease *Lease) error {
 // Heartbeat renews a lease (checks epoch fencing).
 func (s *SQLiteLeaseStore) Heartbeat(ctx context.Context, id string, chatID string, epoch int64) error {
 	now := time.Now().Unix()
+	newEpoch := epoch + 1 // ponytail: monotonically increment epoch on each heartbeat; prevents stale claimants from reusing old epochs
 	// Update both last_heartbeat and epoch_token (new epoch prevents stale heartbeats)
 	result, err := s.db.ExecContext(ctx,
 		`UPDATE leases SET last_heartbeat=?, epoch_token=? WHERE id=? AND chat_id=? AND epoch_token=? AND state='active'`,
-		now, now, id, chatID, epoch)
+		now, newEpoch, id, chatID, epoch)
 	if err != nil {
 		return fmt.Errorf("heartbeat update: %w", err)
 	}
