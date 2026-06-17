@@ -266,3 +266,29 @@ func queryIncompleteTasksWithDescription(db *sql.DB) []struct {
 	}
 	return result
 }
+
+// queryEdges queries all edges (from_task → to_task).
+func queryEdges(db *sql.DB) []struct {
+	From, To string
+} {
+	var result []struct {
+		From, To string
+	}
+	rows, err := db.Query("SELECT from_task, to_task FROM edges")
+	if err != nil {
+		log.Printf("queryEdges: %v", err)
+		return result
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var f, t string
+		if err := rows.Scan(&f, &t); err != nil {
+			log.Printf("queryEdges Scan: %v", err)
+			continue
+		}
+		result = append(result, struct {
+			From, To string
+		}{f, t})
+	}
+	return result
+}

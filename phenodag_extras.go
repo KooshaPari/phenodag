@@ -494,14 +494,11 @@ func cmdCriticalPathPort(args []string) error {
 		for _, id := range taskIDs {
 			indeg[id] = 0
 		}
-		rows, _ := db.Query("SELECT from_task, to_task FROM edges")
-		for rows.Next() {
-			var f, t string
-			_ = rows.Scan(&f, &t)
-			adj[f] = append(adj[f], t)
-			indeg[t]++
+		edges := queryEdges(db)
+		for _, e := range edges {
+			adj[e.From] = append(adj[e.From], e.To)
+			indeg[e.To]++
 		}
-		rows.Close()
 		dist := map[string]int{}
 		prev := map[string]string{}
 		queue := []string{}
@@ -870,13 +867,10 @@ func cmdMermaidPort(args []string) error {
 		for _, t := range tasks {
 			fmt.Printf("    %s[\"%s<br/>%s\"]\n", sanitizeIDPort(t.ID), t.ID, t.Subproject)
 		}
-		rows, _ := db.Query("SELECT from_task, to_task FROM edges")
-		for rows.Next() {
-			var f, t string
-			_ = rows.Scan(&f, &t)
-			fmt.Printf("    %s --> %s\n", sanitizeIDPort(f), sanitizeIDPort(t))
+		edges := queryEdges(db)
+		for _, e := range edges {
+			fmt.Printf("    %s --> %s\n", sanitizeIDPort(e.From), sanitizeIDPort(e.To))
 		}
-		rows.Close()
 		fmt.Println("```")
 		return nil
 	})
@@ -987,14 +981,11 @@ func cmdTopoPort(args []string) error {
 		for _, t := range taskData {
 			tasks[t.ID] = map[string]string{"stage": fmt.Sprintf("%d", t.Stage), "status": t.Status, "sub": t.Subproject}
 		}
+		edgeData := queryEdges(db)
 		edges := [][]string{}
-		rows, _ := db.Query("SELECT from_task, to_task FROM edges")
-		for rows.Next() {
-			var f, t string
-			_ = rows.Scan(&f, &t)
-			edges = append(edges, []string{f, t})
+		for _, e := range edgeData {
+			edges = append(edges, []string{e.From, e.To})
 		}
-		rows.Close()
 		switch *format {
 		case "dot":
 			fmt.Println("digraph phenodag {")
@@ -1149,14 +1140,11 @@ func cmdHTMLPort(args []string) error {
 			nodes = append(nodes, node{ID: t.ID, Status: t.Status, Sub: t.Subproject, Stage: fmt.Sprintf("%d", t.Stage)})
 		}
 		type edge struct{ From, To string }
+		edgeData := queryEdges(db)
 		var edges []edge
-		rows, _ := db.Query("SELECT from_task, to_task FROM edges")
-		for rows.Next() {
-			var e edge
-			_ = rows.Scan(&e.From, &e.To)
-			edges = append(edges, e)
+		for _, e := range edgeData {
+			edges = append(edges, edge{From: e.From, To: e.To})
 		}
-		rows.Close()
 		nodesJSON, _ := json.Marshal(nodes)
 		edgesJSON, _ := json.Marshal(edges)
 		tmpl = strings.Replace(tmpl, "{{NODES}}", string(nodesJSON), 1)
