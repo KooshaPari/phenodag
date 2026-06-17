@@ -21,3 +21,12 @@ duplication:
 # Will be refactored post-merge when dagctl is retired
 exclusions:
   - phenodag_extras.go
+
+# Quality gates with documented baseline (see ADR-dedup-baseline.md)
+qualityGates:
+  - metric: duplicated_lines_density
+    operation: GREATER_THAN
+    value: 5.0
+    # 4.5% is Phase-4a baseline (irreducible without risky refactors).
+    # Root cause = verbatim dagctl port. Phase-4b will complete superset-merge
+    # to drop below 3%. See docs/adr/ADR-dedup-baseline.md for rationale.
