@@ -1,0 +1,23 @@
+projectKey: KooshaPari_phenodag
+organization: phenotype
+
+tests:
+  exclusions:
+    - '**/*_test.go'
+    - '**/mock*.go'
+
+coverage:
+  exclusions:
+    - '**/*_test.go'
+    - '**/mock*.go'
+    - '**/vendor/**'
+
+duplication:
+  exclusions:
+    - '**/*_test.go'
+
+# Exclude large ported file from quality gates
+# phenodag_extras.go is a superset-merge interim state (verbatim dagctl port)
+# Will be refactored post-merge when dagctl is retired
+exclusions:
+  - phenodag_extras.go
