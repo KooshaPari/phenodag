@@ -691,7 +691,7 @@ func cmdSweepPort(args []string) error {
 		defer db.Close()
 		removed := 0
 		// Requeue failed tasks older than 24h (phenodag stores status in tasks; no failures table).
-		threshold := time.Now().UTC().Add(-24 * time.Hour).Format(time.RFC3339)
+		threshold := time.Now().UTC().Add(-24 * time.Hour).Unix()
 		requeue := queryFailedTasksBeforeThreshold(db, threshold)
 		if !*dryRun {
 			for _, t := range requeue {
@@ -870,7 +870,7 @@ func cmdMermaidPort(args []string) error {
 		for _, t := range tasks {
 			fmt.Printf("    %s[\"%s<br/>%s\"]\n", sanitizeIDPort(t.ID), t.ID, t.Subproject)
 		}
-		rows, _ = db.Query("SELECT from_task, to_task FROM edges")
+		rows, _ := db.Query("SELECT from_task, to_task FROM edges")
 		for rows.Next() {
 			var f, t string
 			_ = rows.Scan(&f, &t)
@@ -988,7 +988,7 @@ func cmdTopoPort(args []string) error {
 			tasks[t.ID] = map[string]string{"stage": fmt.Sprintf("%d", t.Stage), "status": t.Status, "sub": t.Subproject}
 		}
 		edges := [][]string{}
-		rows, _ = db.Query("SELECT from_task, to_task FROM edges")
+		rows, _ := db.Query("SELECT from_task, to_task FROM edges")
 		for rows.Next() {
 			var f, t string
 			_ = rows.Scan(&f, &t)
@@ -1150,7 +1150,7 @@ func cmdHTMLPort(args []string) error {
 		}
 		type edge struct{ From, To string }
 		var edges []edge
-		rows, _ = db.Query("SELECT from_task, to_task FROM edges")
+		rows, _ := db.Query("SELECT from_task, to_task FROM edges")
 		for rows.Next() {
 			var e edge
 			_ = rows.Scan(&e.From, &e.To)
