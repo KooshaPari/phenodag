@@ -21,10 +21,9 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
-	"os"
 	"time"
 
-	"github.com/KooshaPari/phenodag/internal/remoteclaim"
+	"github.com/google/uuid"
 )
 
 // LeaseKind mirrors AgilePlus ClaimKind for repo-level resources.
@@ -126,7 +125,7 @@ func NewSQLiteLeaseStore(dbPath, coordRepoURL, githubToken string) (*SQLiteLease
 // Acquire acquires an exclusive lease (or returns error if already held).
 func (s *SQLiteLeaseStore) Acquire(ctx context.Context, lease *Lease) error {
 	if lease.ID == "" {
-		lease.ID = remoteclaim.NewID() // Reuse remoteclaim's UUID gen
+		lease.ID = uuid.New().String()
 	}
 	lease.AcquiredAt = time.Now()
 	lease.LastHeartbeat = lease.AcquiredAt
@@ -134,12 +133,13 @@ func (s *SQLiteLeaseStore) Acquire(ctx context.Context, lease *Lease) error {
 	lease.EpochToken = lease.AcquiredAt.Unix()
 
 	// Check for existing active lease on this resource
-	existing, err := s.db.QueryRowContext(ctx,
+	var existingID string
+	err := s.db.QueryRowContext(ctx,
 		"SELECT id FROM leases WHERE resource=? AND state='active' LIMIT 1",
-		lease.Resource).Scan(nil)
+		lease.Resource).Scan(&existingID)
 	if err != sql.ErrNoRows {
 		if err == nil {
-			return fmt.Errorf("resource already leased (existing lease held)")
+			return fmt.Errorf("resource already leased (existing lease: %s)", existingID)
 		}
 		return err
 	}
