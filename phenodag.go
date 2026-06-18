@@ -130,7 +130,7 @@ func main() {
 	cmd := os.Args[1]
 	args := os.Args[2:]
 	for i, a := range args {
-		if a == "--db" && i+1 < len(args) {
+		if (a == "--db" || a == "-db") && i+1 < len(args) {
 			gDBPath = args[i+1]
 			break
 		}

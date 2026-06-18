@@ -12,6 +12,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"os"
 	"sync"
 	"time"
 )
@@ -459,95 +460,8 @@ var v3PortSideExtend3 = map[string][]v3PortTask{
 	},
 }
 
-// cmdExtend3V3 — equivalent of dagctl's extend3-v3: 20 L9 + 20 L10 + 20 side (4 new DAGs).
-// New preset name: v3-extend3-415.
+// cmdExtend3V3 — deprecated shim that delegates to extend3-v2.
 func cmdExtend3V3(args []string) error {
-	fs := flag.NewFlagSet("extend3-v3", flag.ExitOnError)
-	_ = fs.String("db", gDBPath, "path to SQLite DB")
-	fs.Parse(args)
-
-	db, err := openDB(gDBPath)
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-	if err := migrate(db); err != nil {
-		return err
-	}
-
-	tx, err := db.Begin()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-	stmt, _ := tx.Prepare(`INSERT OR IGNORE INTO tasks
-		(id, stage, slot, description, repo, subproject, category, lane, branch, kind, priority, semantic_hash, side_dag, status, assigned_agent, created_at, updated_at)
-		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
-	defer stmt.Close()
-	edge, _ := tx.Prepare(`INSERT OR IGNORE INTO edges(from_task, to_task) VALUES (?, ?)`)
-	defer edge.Close()
-	sideMeta, _ := tx.Prepare(`INSERT OR IGNORE INTO side_dags(id, name, description) VALUES (?, ?, ?)`)
-	defer sideMeta.Close()
-
-	_, _ = sideMeta.Exec("sd-evals", "sd-evals", "Eval harness, regression, determinism, cost-corrected leaderboard.")
-	_, _ = sideMeta.Exec("sd-observability", "sd-observability", "SLI/SLO, burn-rate alerts, on-call, error-budget governance.")
-	_, _ = sideMeta.Exec("sd-monorepo", "sd-monorepo", "Monorepo decisions, shared CI, cross-crate impact, release train.")
-	_, _ = sideMeta.Exec("sd-agent-mesh", "sd-agent-mesh", "Agent discovery, trust, mesh routing, work-stealing, mesh health.")
-
-	now := nowUTC()
-	insertV3PortTask := func(t v3PortTask) error {
-		_, err := stmt.Exec(
-			t.ID, t.Stage, t.Slot, t.Description, t.Subproject, t.Subproject, t.Category, t.Subproject, t.Branch,
-			t.Kind, t.Priority, v3PortHash(t.Description), t.SideDAG, t.Status, "", now, now,
-		)
-		return err
-	}
-
-	for _, t := range v3PortL9 {
-		if err := insertV3PortTask(t); err != nil {
-			return err
-		}
-	}
-	for _, t := range v3PortL10 {
-		if err := insertV3PortTask(t); err != nil {
-			return err
-		}
-	}
-	for _, sideTasks := range v3PortSideExtend3 {
-		for _, t := range sideTasks {
-			t2 := t
-			t2.Subproject = "cross-cutting"
-			if err := insertV3PortTask(t2); err != nil {
-				return err
-			}
-		}
-	}
-
-	// Wire L8 -> L9 -> L10 (1:1).
-	for i := 1; i <= 20; i++ {
-		from8 := fmt.Sprintf("task-08-%02d", i)
-		to9 := fmt.Sprintf("task-09-%02d", i)
-		_, _ = edge.Exec(from8, to9)
-		to10 := fmt.Sprintf("task-10-%02d", i)
-		_, _ = edge.Exec(to9, to10)
-	}
-	if err := tx.Commit(); err != nil {
-		return err
-	}
-	for _, kv := range [][2]string{
-		{"preset", "v3-extend3-415"},
-		{"preset_description", "v3-extend3-415: full L1-L10 + 7+3+4 side-DAGs = ~415 tasks"},
-		{"stages", "10"},
-		{"last_updated", now},
-	} {
-		_, _ = db.Exec(`INSERT INTO dag_meta(key, value) VALUES(?, ?)
-			ON CONFLICT(key) DO UPDATE SET value=excluded.value`, kv[0], kv[1])
-	}
-	totalSide := 0
-	for _, sideTasks := range v3PortSideExtend3 {
-		totalSide += len(sideTasks)
-	}
-	fmt.Printf("extended v3: %d L9 + %d L10 + %d side-extend3 tasks\n",
-		len(v3PortL9), len(v3PortL10), totalSide)
-	return nil
+	fmt.Fprintln(os.Stderr, "DEPRECATED: extend3-v3 is deprecated, use extend3-v2 instead")
+	return cmdExtend3V2(args)
 }

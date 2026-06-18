@@ -5,6 +5,7 @@ phenodag
 *.db-wal
 *.md
 !README.md
+!CHANGELOG.md
 !docs/*.md
 
 # IDE
