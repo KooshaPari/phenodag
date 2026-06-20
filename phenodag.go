@@ -322,8 +322,8 @@ func cmdInit(args []string) error {
 
 var fleetPriority = []string{
 	"HexaKit", "PhenoDevOps", "Pyron", "FocalPoint", "HeliosCLI",
-	"helioscope", "PhenoProc", "PhenoKits", "phenotype-bus", "phenotype-otel",
-	"phenotype-postfx", "phenotype-terrain", "phenotype-voxel", "phenotype-water",
+	"helioscope", "PhenoProc", "phenokits-commons", "phenotype-bus", "phenotype-otel",
+	"phenotype-gfx",
 	"phenotype-journeys", "phenotype-skills",
 }
 
