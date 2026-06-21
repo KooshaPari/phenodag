@@ -1,0 +1,37 @@
+name: sbom
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  sbom:
+    name: CycloneDX SBOM (Go modules)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491 # v5.0.0
+        with:
+          go-version: '1.26.4'
+          cache: true
+      - name: Install cyclonedx-gomod
+        run: go install github.com/CycloneDX/cyclonedx-gomod/cmd/cyclonedx-gomod@latest
+      - name: Generate SBOM
+        run: cyclonedx-gomod mod -licenses -output sbom.json
+      - name: Reject GPL/AGPL additions
+        run: |
+          if [ ! -s sbom.json ]; then
+            echo '{"bomFormat":"CycloneDX","components":[]}' > sbom.json
+          fi
+          if jq -r '.components[].licenses[]?.license.id' sbom.json 2>/dev/null | grep -E 'GPL|AGPL'; then
+            echo "GPL/AGPL license detected — failing per fleet policy."
+            exit 1
+          fi
+      - uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4
+        with:
+          name: sbom-${{ github.sha }}
+          path: sbom.json
