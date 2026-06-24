@@ -21,14 +21,14 @@
 <!-- AI-DD-META:END -->
 # phenodag — multi-agent multi-project DAG (Go)
 
-Headless single-binary Go CLI for a fleet work queue. Wraps [beads (`bd`)](https://github.com/gastownhall/beads) for storage semantics, but ships with a self-contained SQLite backend (modernc.org/sqlite, pure Go) so it runs offline.
+Headless single-binary Go CLI for a fleet work queue. Self-contained SQLite backend (modernc.org/sqlite, pure Go) so it runs offline. Sources: single-file `phenodag.go` (~1.7K LOC) + `internal/remoteclaim/` (POSIX flock + SQLite store).
 
 **Why this exists**: 300+ local repos + 65+ GitHub repos, dozens of parallel agents, and constant risk of (a) two agents picking the same work and (b) two agents independently writing semantically-identical tasks with different wording. `phenodag` solves both with atomic SQLite claims + hybrid fuzzy-duplicate detection.
 
 ## Quick start
 
 ```bash
-go build -mod=mod -o phenodag ./cmd/phenodag
+go build -mod=mod -o phenodag .
 ./phenodag init    --width 20 --stages 6 --db FLEET_DAG.db
 ./phenodag seed    --preset v3-180 --db FLEET_DAG.db     # 120 core + 60 side = 180 tasks
 ./phenodag status  --db FLEET_DAG.db
@@ -44,22 +44,20 @@ go build -mod=mod -o phenodag ./cmd/phenodag
 
 ```
 phenodag (this binary)
-  ├── internal/store     — SQLite (modernc.org/sqlite, pure Go) + POSIX flock
-  ├── internal/similarity — hybrid: token-Jaccard × 0.6 + Levenshtein × 0.2 + repo × 0.2
-  ├── internal/claim     — repo + branch + worktree claim store, PK on resource
-  ├── internal/preset    — YAML loader (presets/v3-180.yaml, presets/empty.yaml)
-  ├── internal/scan      — repo scanner (mangled-git + no-git tolerant)
-  ├── internal/backfill  — side-DAG → gap promotion
-  ├── internal/bd        — `bd` (beads) CLI wrapper, JSON over stdio (optional)
-  ├── internal/graph     — DAG ops (ready/blocked/unblock, ingest, export)
-  └── cmd/phenodag       — CLI router (init/seed/status/validate/pick/claim/release/heartbeat/done/fail/fill/scan/dupes/export)
+  ├── phenodag.go              — single-file CLI (init/seed/status/validate/pick/claim/release/heartbeat/done/fail/fill/scan/dupes/export)
+  ├── internal/remoteclaim/    — POSIX flock + SQLite store (PK on (agent, repo, branch, worktree))
+  ├── presets/                 — YAML loader (v3-180.yaml, empty.yaml)  ⚠ directory does not yet exist on main; see TODO
+  ├── scripts/                 — generate_v3_preset.py
+  ├── Makefile                 — build / test / install / release / smoke
+  ├── go.mod                   — go 1.26, modernc.org/sqlite, gopkg.in/yaml.v3
+  └── README.md                — (this file)
 ```
 
 ## Width × Length
 
 **Width 20 and length 100 are minima, not caps.** `init --width N --stages M` accepts any positive integer. v3-180 is a preset (6 stages × 20 width + 12 side-DAGs × 5), not a hard-coded shape.
 
-To create your own preset, copy `presets/empty.yaml` and add tasks. Or write a Go file in `cmd/phenodag/preset_*.go` (see `preset_v3_180.go` for the pattern).
+To create your own preset, author a YAML file under `presets/` and pass `--preset <name>` to `seed`. (See `scripts/generate_v3_preset.py` for the canonical generator.)
 
 ## Presets
 
@@ -107,15 +105,12 @@ Groups with score ≥ `--threshold` are persisted to `duplicate_groups` (member 
 
 ```
 phenodag/
-├── cmd/phenodag/        CLI entry + 14 subcommand files
-├── internal/            8 packages (store, similarity, claim, graph, scan, backfill, bd, preset)
-├── presets/             v3-180.yaml (180 tasks) + empty.yaml
-├── docs/                AGENT_PROTOCOLS.md, PLACEMENT.md
-├── examples/            agent_loop.sh
-├── scripts/             generate_v3_preset.py
-├── Makefile             build / test / install
-├── go.mod               go 1.26, modernc.org/sqlite, gopkg.in/yaml.v3
-└── README.md            (this file)
+├── phenodag.go              single-file CLI (~1.7K LOC) — all 14 subcommands
+├── internal/remoteclaim/    POSIX flock + SQLite claim store (PK on resource tuple)
+├── scripts/                 generate_v3_preset.py
+├── Makefile                 build / test / install / release / smoke
+├── go.mod                   go 1.26, modernc.org/sqlite, gopkg.in/yaml.v3
+└── README.md                (this file)
 ```
 
 ## Reproduction
@@ -123,7 +118,7 @@ phenodag/
 ```bash
 git clone https://github.com/KooshaPari/phenodag.git
 cd phenodag
-go build -mod=mod -o phenodag ./cmd/phenodag
+go build -mod=mod -o phenodag .
 go test -mod=mod ./...
 ./phenodag init    --width 20 --stages 6 --db test.db
 ./phenodag seed    --preset v3-180 --db test.db
@@ -138,4 +133,4 @@ go test -mod=mod ./...
 
 ## License
 
-MIT
+MIT — see [`LICENSE`](./LICENSE).
