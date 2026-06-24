@@ -1,7 +1,20 @@
-.PHONY: build test run clean install release
+.PHONY: build test run clean install release lint lint-install smoke
 
 BIN     ?= phenodag
 LDFLAGS ?= -s -w
+
+# Hygiene gardening (DAG-T9). Run after `make lint-install` once.
+lint-install:
+	@command -v pre-commit >/dev/null 2>&1 || { echo "install pre-commit: pip install pre-commit"; exit 1; }
+	@command -v staticcheck >/dev/null 2>&1 || { echo "install staticcheck: go install honnef.co/go/tools/cmd/staticcheck@latest"; exit 1; }
+	pre-commit install
+
+# Fast local lint pass (no commit hook).
+lint:
+	@gofmt -l -s . | grep -v vendor/ | grep -v "\.git/" | tee /tmp/gofmt.out
+	@test ! -s /tmp/gofmt.out || { echo "gofmt: reformat with 'gofmt -w .'"; exit 1; }
+	go vet ./...
+	staticcheck ./...
 
 build:
 	GOFLAGS="-mod=mod" go build -mod=mod -ldflags "$(LDFLAGS)" -o $(BIN) .
