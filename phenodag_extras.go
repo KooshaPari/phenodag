@@ -21,7 +21,6 @@ import (
 	"bufio"
 	"context"
 	"database/sql"
-	"embed"
 	"encoding/csv"
 	"encoding/json"
 	"flag"
@@ -40,8 +39,9 @@ import (
 	"github.com/KooshaPari/phenodag/internal/remoteclaim"
 )
 
-//go:embed dagctl_dag_template.html
-var htmlTemplateFS embed.FS
+// (dagctl_dag_template.html was removed in commit 2826b1f along with the
+//  //go:embed directive for it; the htmlTemplateFS variable that referenced
+//  it was unused and has been removed to keep the build green.)
 
 const defaultRemoteClaimsDB = "FLEET_REMOTE_CLAIMS.db"
 

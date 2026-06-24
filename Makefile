@@ -1,7 +1,22 @@
-.PHONY: build test run clean install release lint lint-install smoke
+.PHONY: build test test-cli-smoke run clean install release lint lint-install smoke doc
 
 BIN     ?= phenodag
 LDFLAGS ?= -s -w
+
+# Tier-3 #3 polish (DAG-013).  Runs the binary through a canned init/seed/
+# validate/pick/status lifecycle against a fresh temp DB, asserts each
+# subcommand exits 0, and asserts the resulting DB is non-empty + has
+# the expected schema.  Pure stdlib; no Go toolchain needed at runtime
+# (the binary is built once via `make build`).
+test-cli-smoke: build
+	@python scripts/smoke_cli.py --bin $(BIN) --db /tmp/phenodag-smoke.db
+
+# Tier-3 #3 polish (DAG-013).  Print the CLI's --help as a quick reference
+# and validate the README links are reachable (file:// only).
+doc:
+	@./$(BIN) --help
+	@echo "---"
+	@python scripts/check_readme_links.py README.md
 
 # Hygiene gardening (DAG-T9). Run after `make lint-install` once.
 lint-install:
