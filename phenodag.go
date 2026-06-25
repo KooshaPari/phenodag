@@ -361,14 +361,16 @@ func v3Core() []seedTask {
 			case 1, 2, 3, 4:
 				repo = fleetPriority[(slot-1)%len(fleetPriority)]
 			case 5:
+				// slot-1 ranges 0..15; fleetPriority has 13 entries so cap with modulo
+				// (the index range in stage 5 covers more slots than fleetPriority has).
 				if slot <= 16 {
-					repo = fleetPriority[slot-1]
+					repo = fleetPriority[(slot-1)%len(fleetPriority)]
 				} else {
-					repo = activeRepos[slot-16-1]
+					repo = activeRepos[(slot-16-1)%len(activeRepos)]
 				}
 			case 6:
 				if slot <= 11 {
-					repo = activeRepos[slot-1]
+					repo = activeRepos[(slot-1)%len(activeRepos)]
 				} else {
 					repo = "fleet-wide"
 				}
@@ -443,21 +445,22 @@ func melosvizCore() []seedTask {
 			case 1, 2, 3, 4:
 				repo = fleetPriority[(slot-1)%len(fleetPriority)]
 			case 5:
+				// slot-1 ranges 0..15; fleetPriority has 13 entries so cap with modulo.
 				if slot <= 16 {
-					repo = fleetPriority[slot-1]
+					repo = fleetPriority[(slot-1)%len(fleetPriority)]
 				} else {
-					repo = activeRepos[slot-16-1]
+					repo = activeRepos[(slot-16-1)%len(activeRepos)]
 				}
 			case 6:
 				if slot <= 11 {
-					repo = activeRepos[slot-1]
+					repo = activeRepos[(slot-1)%len(activeRepos)]
 				} else {
 					repo = "fleet-wide"
 				}
 			case 7:
 				// SUSTAIN: per-subproject retro + debt retire + ADR
 				if slot <= 16 {
-					repo = fleetPriority[slot-1]
+					repo = fleetPriority[(slot-1)%len(fleetPriority)]
 				} else {
 					repo = "fleet-wide"
 				}
