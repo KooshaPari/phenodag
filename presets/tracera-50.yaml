@@ -1,0 +1,36 @@
+name: tracera-50
+description: Tracera fleet (4 stages x 5 width + 6 side-DAGs x 5; use `fill` to fill width-20 slots)
+core:
+  stages: 4
+  width: 5
+side_dags:
+  - id: sd-tr-001
+    name: tracera spec-graph
+    description: Spec -> requirement graph build
+    size: 5
+    repo: Tracera
+  - id: sd-tr-002
+    name: tracera semantic-scorer
+    description: Embedding-based semantic scoring
+    size: 5
+    repo: Tracera
+  - id: sd-tr-003
+    name: tracera contract-tests
+    description: Property-based contract test suite
+    size: 5
+    repo: Tracera
+  - id: sd-tr-004
+    name: tracera mutation
+    description: Mutation testing harness
+    size: 5
+    repo: Tracera
+  - id: sd-tr-005
+    name: tracera bridge
+    description: Bridge to pheno-harness pillars
+    size: 5
+    repo: Tracera
+  - id: sd-tr-006
+    name: tracera dashboard
+    description: Multi-view requirement dashboard
+    size: 5
+    repo: Tracera

@@ -1,0 +1,66 @@
+name: mcp-fleet-90
+description: Post-fleet-60 depth wave (6 stages x 15 width + 12 side-DAGs x 5)
+core:
+  stages: 6
+  width: 15
+side_dags:
+  - id: sd-fleet90-001
+    name: fleet90 ops 1
+    description: Fleet90 deep operation 1
+    size: 5
+    repo: PhenoMCPServers
+  - id: sd-fleet90-002
+    name: fleet90 ops 2
+    description: Fleet90 deep operation 2
+    size: 5
+    repo: PhenoMCPServers
+  - id: sd-fleet90-003
+    name: fleet90 ops 3
+    description: Fleet90 deep operation 3
+    size: 5
+    repo: PhenoMCPServers
+  - id: sd-fleet90-004
+    name: fleet90 ops 4
+    description: Fleet90 deep operation 4
+    size: 5
+    repo: PhenoMCPServers
+  - id: sd-fleet90-005
+    name: fleet90 ops 5
+    description: Fleet90 deep operation 5
+    size: 5
+    repo: PhenoMCPServers
+  - id: sd-fleet90-006
+    name: fleet90 ops 6
+    description: Fleet90 deep operation 6
+    size: 5
+    repo: PhenoMCPServers
+  - id: sd-fleet90-007
+    name: fleet90 ops 7
+    description: Fleet90 deep operation 7
+    size: 5
+    repo: PhenoMCPServers
+  - id: sd-fleet90-008
+    name: fleet90 ops 8
+    description: Fleet90 deep operation 8
+    size: 5
+    repo: PhenoMCPServers
+  - id: sd-fleet90-009
+    name: fleet90 ops 9
+    description: Fleet90 deep operation 9
+    size: 5
+    repo: PhenoMCPServers
+  - id: sd-fleet90-010
+    name: fleet90 ops 10
+    description: Fleet90 deep operation 10
+    size: 5
+    repo: PhenoMCPServers
+  - id: sd-fleet90-011
+    name: fleet90 ops 11
+    description: Fleet90 deep operation 11
+    size: 5
+    repo: PhenoMCPServers
+  - id: sd-fleet90-012
+    name: fleet90 ops 12
+    description: Fleet90 deep operation 12
+    size: 5
+    repo: PhenoMCPServers

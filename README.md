@@ -44,10 +44,11 @@ go build -mod=mod -o phenodag .
 
 ```
 phenodag (this binary)
-  ├── phenodag.go              — single-file CLI (init/seed/status/validate/pick/claim/release/heartbeat/done/fail/fill/scan/dupes/export)
+  ├── phenodag.go              — single-file CLI (init/seed/status/validate/pick/claim/release/heartbeat/done/fail/fill/scan/dupes/export/seed-yaml)
+  ├── internal/preset/         — YAML loader (`seed-yaml --preset <name>`)  ✅ v1 schema frozen
   ├── internal/remoteclaim/    — POSIX flock + SQLite store (PK on (agent, repo, branch, worktree))
-  ├── presets/                 — YAML loader (v3-180.yaml, empty.yaml)  ⚠ directory does not yet exist on main; see TODO
-  ├── scripts/                 — generate_v3_preset.py
+  ├── presets/                 — 7 built-in YAML presets (v3-180, melosviz-185, agileplus-50, tracera-50, mcp-fleet-60, mcp-fleet-90, empty)
+  ├── scripts/                 — generate_preset.py (canonical YAML generator)
   ├── Makefile                 — build / test / install / release / smoke
   ├── go.mod                   — go 1.26, modernc.org/sqlite, gopkg.in/yaml.v3
   └── README.md                — (this file)
@@ -57,7 +58,19 @@ phenodag (this binary)
 
 **Width 20 and length 100 are minima, not caps.** `init --width N --stages M` accepts any positive integer. v3-180 is a preset (6 stages × 20 width + 12 side-DAGs × 5), not a hard-coded shape.
 
-To create your own preset, author a YAML file under `presets/` and pass `--preset <name>` to `seed`. (See `scripts/generate_v3_preset.py` for the canonical generator.)
+To create your own preset, use `seed-yaml` (the externalized loader) or `seed` (the built-in switch). For `seed-yaml`, author a YAML file under `presets/` and pass `--preset <name>`:
+
+```bash
+# Use one of the 7 built-in YAML presets
+./phenodag seed-yaml --preset v3-180 --db FLEET_DAG.db
+./phenodag seed-yaml --list                  # show all available presets
+
+# Or generate a new preset
+python scripts/generate_preset.py forge-120 8 15 0 0 --repo forge
+./phenodag seed-yaml --preset forge-120 --db FLEET_DAG.db
+```
+
+The legacy `seed` subcommand is still available for backwards compatibility (the 6 hard-coded presets: v3-180, melosviz-185, agileplus-50, tracera-50, mcp-fleet-60, mcp-fleet-90).
 
 ## Presets
 

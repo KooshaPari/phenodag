@@ -1,0 +1,51 @@
+name: melosviz-185
+description: Melosviz fleet (7 stages x 20 width + 9 side-DAGs x 5)
+core:
+  stages: 7
+  width: 20
+side_dags:
+  - id: sd-melosviz-stage-1
+    name: stage 1 viz
+    description: Stage 1 pipeline viz + Gantt
+    size: 5
+    repo: melosviz
+  - id: sd-melosviz-stage-2
+    name: stage 2 viz
+    description: Stage 2 dependency graph
+    size: 5
+    repo: melosviz
+  - id: sd-melosviz-stage-3
+    name: stage 3 viz
+    description: Stage 3 burndown chart
+    size: 5
+    repo: melosviz
+  - id: sd-melosviz-stage-4
+    name: stage 4 viz
+    description: Stage 4 velocity trend
+    size: 5
+    repo: melosviz
+  - id: sd-melosviz-stage-5
+    name: stage 5 viz
+    description: Stage 5 cumulative flow
+    size: 5
+    repo: melosviz
+  - id: sd-melosviz-stage-6
+    name: stage 6 viz
+    description: Stage 6 lead-time histogram
+    size: 5
+    repo: melosviz
+  - id: sd-melosviz-stage-7
+    name: stage 7 viz
+    description: Stage 7 release-train viz
+    size: 5
+    repo: melosviz
+  - id: sd-melosviz-health
+    name: health panel
+    description: Service health + SLA panel
+    size: 5
+    repo: melosviz
+  - id: sd-melosviz-export
+    name: data export
+    description: CSV / Parquet / BigQuery export
+    size: 5
+    repo: melosviz
