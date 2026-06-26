@@ -24,7 +24,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	_ "github.com/mattn/go-sqlite3"
+	_ "modernc.org/sqlite"
 )
 
 // LeaseKind mirrors AgilePlus ClaimKind for repo-level resources.
@@ -105,7 +105,10 @@ type SQLiteLeaseStore struct {
 
 // NewSQLiteLeaseStore creates a lease store backed by SQLite + GitHub coordination.
 func NewSQLiteLeaseStore(dbPath, coordRepoURL, githubToken string) (*SQLiteLeaseStore, error) {
-	db, err := sql.Open("sqlite3", dbPath)
+	// Use the pure-Go modernc.org/sqlite driver (driver name "sqlite").
+	// DSN: ?_pragma=foreign_keys(1)&_pragma=journal_mode(WAL) for safer concurrent access.
+	dsn := dbPath + "?_pragma=foreign_keys(1)&_pragma=journal_mode(WAL)&_loc=UTC"
+	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("open sqlite: %w", err)
 	}
@@ -268,9 +271,10 @@ func (s *SQLiteLeaseStore) Get(ctx context.Context, id string) (*Lease, error) {
 		return nil, err
 	}
 
-	// Convert Unix timestamps back to time.Time
-	lease.AcquiredAt = time.Unix(acquiredAtUnix, 0)
-	lease.LastHeartbeat = time.Unix(lastHeartbeatUnix, 0)
+	// Convert Unix timestamps back to time.Time (modernc.org/sqlite scans
+	// INTEGER columns into int64; convert here so callers get time.Time).
+	lease.AcquiredAt = time.Unix(acquiredAtUnix, 0).UTC()
+	lease.LastHeartbeat = time.Unix(lastHeartbeatUnix, 0).UTC()
 
 	return lease, nil
 }
@@ -288,11 +292,14 @@ func (s *SQLiteLeaseStore) ListActive(ctx context.Context) ([]*Lease, error) {
 	var leases []*Lease
 	for rows.Next() {
 		lease := &Lease{}
+		var acquiredAtUnix, lastHeartbeatUnix int64
 		if err := rows.Scan(&lease.ID, &lease.Kind, &lease.Resource, &lease.State, &lease.ChatID,
-			&lease.TTLSeconds, &lease.EpochToken, &lease.AcquiredAt, &lease.LastHeartbeat,
+			&lease.TTLSeconds, &lease.EpochToken, &acquiredAtUnix, &lastHeartbeatUnix,
 			&lease.Reason.Kind, &lease.Reason.Value, &lease.GitHubCoordPath); err != nil {
 			return nil, err
 		}
+		lease.AcquiredAt = time.Unix(acquiredAtUnix, 0).UTC()
+		lease.LastHeartbeat = time.Unix(lastHeartbeatUnix, 0).UTC()
 		leases = append(leases, lease)
 	}
 

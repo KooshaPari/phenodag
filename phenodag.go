@@ -30,8 +30,9 @@ import (
 	"time"
 
 	_ "modernc.org/sqlite"
-)
 
+	"github.com/KooshaPari/phenodag/internal/preset"
+)
 const version = "1.0.0-rc.1"
 
 var gDBPath = "phenodag.db"
@@ -145,6 +146,8 @@ func main() {
 		err = cmdInit(args)
 	case "seed":
 		err = cmdSeed(args)
+	case "seed-yaml":
+		err = cmdSeedYAML(args)
 	case "status":
 		err = cmdStatus(args)
 	case "validate":
@@ -358,14 +361,16 @@ func v3Core() []seedTask {
 			case 1, 2, 3, 4:
 				repo = fleetPriority[(slot-1)%len(fleetPriority)]
 			case 5:
+				// slot-1 ranges 0..15; fleetPriority has 13 entries so cap with modulo
+				// (the index range in stage 5 covers more slots than fleetPriority has).
 				if slot <= 16 {
-					repo = fleetPriority[slot-1]
+					repo = fleetPriority[(slot-1)%len(fleetPriority)]
 				} else {
-					repo = activeRepos[slot-16-1]
+					repo = activeRepos[(slot-16-1)%len(activeRepos)]
 				}
 			case 6:
 				if slot <= 11 {
-					repo = activeRepos[slot-1]
+					repo = activeRepos[(slot-1)%len(activeRepos)]
 				} else {
 					repo = "fleet-wide"
 				}
@@ -440,21 +445,22 @@ func melosvizCore() []seedTask {
 			case 1, 2, 3, 4:
 				repo = fleetPriority[(slot-1)%len(fleetPriority)]
 			case 5:
+				// slot-1 ranges 0..15; fleetPriority has 13 entries so cap with modulo.
 				if slot <= 16 {
-					repo = fleetPriority[slot-1]
+					repo = fleetPriority[(slot-1)%len(fleetPriority)]
 				} else {
-					repo = activeRepos[slot-16-1]
+					repo = activeRepos[(slot-16-1)%len(activeRepos)]
 				}
 			case 6:
 				if slot <= 11 {
-					repo = activeRepos[slot-1]
+					repo = activeRepos[(slot-1)%len(activeRepos)]
 				} else {
 					repo = "fleet-wide"
 				}
 			case 7:
 				// SUSTAIN: per-subproject retro + debt retire + ADR
 				if slot <= 16 {
-					repo = fleetPriority[slot-1]
+					repo = fleetPriority[(slot-1)%len(fleetPriority)]
 				} else {
 					repo = "fleet-wide"
 				}
@@ -913,6 +919,136 @@ func seedMcpFleetEdges(estmt *sql.Stmt, maxStage, width int, idFmt func(stage, s
 		}
 	}
 }
+
+
+// cmdSeedYAML loads a preset from `presets/<name>.yaml` and seeds the DB.
+// This is the externalized version of cmdSeed — useful for new fleets
+// without recompiling the binary. Existing built-in presets (v3-180, etc.)
+// are still served by cmdSeed for backwards compatibility.
+//
+// Usage:
+//   ./phenodag seed-yaml --preset v3-180 --db FLEET_DAG.db
+//   ./phenodag seed-yaml --list                # list all available presets
+//   ./phenodag seed-yaml --dir /path/to/presets --preset forge-120
+func cmdSeedYAML(args []string) error {
+	fs := flag.NewFlagSet("seed-yaml", flag.ExitOnError)
+	presetName := fs.String("preset", "v3-180", "preset name (matches `presets/<name>.yaml`)")
+	dbPath := fs.String("db", gDBPath, "path to SQLite DB")
+	presetsDir := fs.String("dir", "presets", "presets directory (default: ./presets)")
+	listOnly := fs.Bool("list", false, "list all available presets and exit")
+	fs.Parse(args)
+
+	if *listOnly {
+		names, err := preset.ListAll(*presetsDir)
+		if err != nil {
+			return err
+		}
+		for _, n := range names {
+			fmt.Println(n)
+		}
+		return nil
+	}
+
+	p, err := preset.LoadByName(*presetName, *presetsDir)
+	if err != nil {
+		return fmt.Errorf("load preset: %w", err)
+	}
+
+	shape := fmt.Sprintf("%dx%d + %d side-dags of %d (total %d)",
+		p.Core.Width, p.Core.Stages, len(p.SideDAGs), avgSideSize(p.SideDAGs), p.TotalCount())
+	fmt.Printf("seed-yaml: %s -> %s\n", p.Name, shape)
+
+	db, err := openDB(*dbPath)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	if err := migrate(db); err != nil {
+		return err
+	}
+
+	tx, err := db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	// Clear out any existing rows from previous seeds so re-seeding is idempotent.
+	for _, tbl := range []string{"tasks", "side_dags", "edges", "duplicate_groups", "claims"} {
+		if _, err := tx.Exec("DELETE FROM " + tbl); err != nil {
+			return fmt.Errorf("clear %s: %w", tbl, err)
+		}
+	}
+
+	// Insert side_dags rows.
+	sdInsert, err := tx.Prepare(`INSERT INTO side_dags(id, name, description) VALUES(?, ?, ?)`)
+	if err != nil {
+		return err
+	}
+	defer sdInsert.Close()
+	for _, sd := range p.SideDAGs {
+		if _, err := sdInsert.Exec(sd.ID, sd.Name, sd.Description); err != nil {
+			return fmt.Errorf("insert side_dag %s: %w", sd.ID, err)
+		}
+	}
+
+	// Insert core tasks (stages x width grid).
+	taskInsert, err := tx.Prepare(`INSERT INTO tasks(id, stage, slot, description, category, kind, side_dag, priority, status, created_at, updated_at)
+		VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+	if err != nil {
+		return err
+	}
+	defer taskInsert.Close()
+	now := nowUTC()
+	coreSeq := 0
+	for stage := 1; stage <= p.Core.Stages; stage++ {
+		for slot := 1; slot <= p.Core.Width; slot++ {
+			coreSeq++
+			tid := fmt.Sprintf("%s-c%04d", p.Name, coreSeq)
+			desc := fmt.Sprintf("Stage %d slot %d (core)", stage, slot)
+			if _, err := taskInsert.Exec(tid, stage, slot, desc, "core", "task", "", 5, "ready", now, now); err != nil {
+				return fmt.Errorf("insert core task: %w", err)
+			}
+		}
+	}
+
+	// Insert side tasks (one per side-DAG slot).
+	for _, sd := range p.SideDAGs {
+		for i := 1; i <= sd.Size; i++ {
+			tid := fmt.Sprintf("%s-s%03d-%d", sd.ID, sideDAGCounter(sd.ID), i)
+			desc := fmt.Sprintf("%s task %d/%d", sd.Name, i, sd.Size)
+			repo := sd.Repo
+			if _, err := taskInsert.Exec(tid, 0, 0, desc, "side", "task", sd.ID, 5, "ready", now, now); err != nil {
+				return fmt.Errorf("insert side task: %w", err)
+			}
+			_ = repo // (reserved for future cross-repo routing)
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	fmt.Printf("seeded %d core + %d side = %d total tasks from preset %q\n", p.CoreCount(), p.SideCount(), p.TotalCount(), p.Name)
+	return nil
+}
+
+func avgSideSize(sds []preset.SideDAG) int {
+	if len(sds) == 0 {
+		return 0
+	}
+	total := 0
+	for _, sd := range sds {
+		total += sd.Size
+	}
+	return total / len(sds)
+}
+
+func sideDAGCounter(id string) int {
+	// deterministic counter derived from the ID hash so re-seeding yields stable names
+	h := sha256.Sum256([]byte(id))
+	return int(h[0])<<8 | int(h[1])
+}
+
 
 func cmdSeed(args []string) error {
 	fs := flag.NewFlagSet("seed", flag.ExitOnError)
