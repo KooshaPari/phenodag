@@ -78,6 +78,32 @@ mod-hygiene: tidy
 	  fi; \
 	done
 
+# DAG-T9.0 / FR #5 increment: fail CI if any *_Port function is added or
+# reintroduced without first being removed from scripts/.port-dupes-allowlist.
+# Tracks the XXL superset-merge refactor: as the FR completes, the
+# allowlist shrinks toward zero. Pure POSIX + awk + grep.
+verify-no-port-dupes:
+	@echo "== verify-no-port-dupes =="
+	@fail=0; \
+	known_total=$$(awk '!/^[[:space:]]*#/ && NF {n++} END {print n+0}' scripts/.port-dupes-allowlist); \
+	actual_total=$$(grep -hoE '^func [A-Za-z0-9_]+Port\b' *.go 2>/dev/null | sort -u | wc -l | tr -d ' '); \
+	listed=$$(awk '!/^[[:space:]]*#/ && NF {print $$1}' scripts/.port-dupes-allowlist | sort -u); \
+	present=$$(grep -hoE '^func [A-Za-z0-9_]+Port\b' *.go 2>/dev/null | sed 's/^func //; s/Port$$//' | sort -u); \
+	extra=$$(comm -23 <(echo "$$present") <(echo "$$listed")); \
+	missing=$$(comm -13 <(echo "$$present") <(echo "$$listed")); \
+	echo "  *_Port funcs on disk: $$actual_total"; \
+	echo "  allowlist entries:     $$known_total"; \
+	if [ -n "$$extra" ]; then \
+	  echo "  FAIL: new *_Port funcs not in allowlist:"; \
+	  echo "$$extra" | sed 's/^/    /'; \
+	  fail=1; \
+	fi; \
+	if [ -n "$$missing" ]; then \
+	  echo "  INFO: allowlist entries no longer on disk (FR progress — remove from allowlist):"; \
+	  echo "$$missing" | sed 's/^/    /'; \
+	fi; \
+	exit $$fail
+
 # Round-trip every built-in preset YAML through the loader and assert
 # that the seeded task count equals the YAML-declared task count
 # (core.stages * core.width + sum of side_dags[].size). Pure POSIX + awk.

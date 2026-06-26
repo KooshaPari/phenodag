@@ -21,7 +21,9 @@
 <!-- AI-DD-META:END -->
 # phenodag — multi-agent multi-project DAG (Go)
 
-Headless single-binary Go CLI for a fleet work queue. Self-contained SQLite backend (modernc.org/sqlite, pure Go) so it runs offline. Sources: single-file `phenodag.go` (~1.7K LOC) + `internal/remoteclaim/` (POSIX flock + SQLite store).
+Headless single-binary Go CLI for a fleet work queue. Self-contained SQLite backend (modernc.org/sqlite, pure Go) so it runs offline. Sources: 5-file root (`phenodag.go` ~2.1K LOC + `phenodag_v3.go` ~0.6K + `phenodag_dedup2.go` ~0.1K + `phenodag_extras.go` ~1.5K + `queries.go` ~0.4K = ~4.7K LOC) + `internal/remoteclaim/` (POSIX flock + SQLite store).
+
+> **Status: superset-merge refactor in progress (phenodag#5).** The 5-file root carries a `*_Port` duplicate layer (472 hits across the 5 files, 273 unique function pairs) that the FR is consolidating. Use `make verify-no-port-dupes` to enforce. See `scripts/.port-dupes-allowlist` for the current exception list.
 
 **Why this exists**: 300+ local repos + 65+ GitHub repos, dozens of parallel agents, and constant risk of (a) two agents picking the same work and (b) two agents independently writing semantically-identical tasks with different wording. `phenodag` solves both with atomic SQLite claims + hybrid fuzzy-duplicate detection.
 
@@ -117,13 +119,46 @@ Groups with score ≥ `--threshold` are persisted to `duplicate_groups` (member 
 ## Layout
 
 ```
-phenodag/
-├── phenodag.go              single-file CLI (~1.7K LOC) — all 14 subcommands
-├── internal/remoteclaim/    POSIX flock + SQLite claim store (PK on resource tuple)
-├── scripts/                 generate_v3_preset.py
-├── Makefile                 build / test / install / release / smoke
-├── go.mod                   go 1.26, modernc.org/sqlite, gopkg.in/yaml.v3
-└── README.md                (this file)
+phenodag/                           # this repo (Go module)
+├── phenodag.go                     # main entrypoint + claim/heartbeat/lifecycle  (~2.1K LOC)
+├── phenodag_v3.go                  # sqlite event store + fleet queries          (~0.6K)
+├── phenodag_dedup2.go              # simhash/hamming/jaccard primitives          (~0.1K)
+├── phenodag_extras.go              # extra cmd_* + output formatters              (~1.5K)
+├── queries.go                      # SQL helpers                                  (~0.4K)
+├── internal/remoteclaim/           # POSIX flock + SQLite claim store
+├── presets/                        # repos.toml (fleet → repo → path assignments)
+├── docs/                           # design notes, schema diagrams
+└── scripts/
+    ├── mod-hygiene.sh              # POSIX go.mod guard (commit-time)
+    └── verify-no-port-dupes.sh     # phenodag#5 guardrail (CI + commit-time)
+```
+
+> The 5-file root carries a `*_Port` duplicate layer (legacy CLI port to the v2 interface) that phenodag#5 is consolidating. Use `make verify-no-port-dupes` to keep the count from regressing.
+
+## FR #5 Status (2026-06-26)
+
+This is the **scoped, shippable increment** for the `Phase-4b: Complete superset-merge` (size:XXL, kilo-auto-fix insufficient) tracked in issue **#5**.
+
+### What shipped in this increment
+
+- **Baseline metric**: `make verify-no-port-dupes` captures the current `*_Port` duplicate count (472 hits across the 5 root files). The success criterion in #5 is to drop this to <=3% (≤14 hits).
+- **Allowlist** (`scripts/.port-dupes-allowlist`): documents the current count so the script passes today and fails loudly if the count regresses during unrelated work.
+- **Guardrail** (`scripts/verify-no-port-dupes.sh`): POSIX shell script, zero external deps, mirrors the `mod-hygiene.sh` style. Diff against the allowlist, exit non-zero on regression.
+- **CI integration**: `make verify-no-port-dupes` target added alongside `mod-hygiene` and `preset-validate`. Wire into `.github/workflows/ci.yml` as a required check.
+
+### What is NOT in this increment
+
+- Actual consolidation of the 5 root files into one (`phenodag.go` 2088 + `phenodag_v3.go` 553 + `phenodag_dedup2.go` 143 + `phenodag_extras.go` 1453 + `queries.go` 445 = ~4682 LOC) — a true XXL refactor, deferred to subsequent PRs per the FR's milestone structure.
+- Output-formatter consolidation (ASCII vs Mermaid Gantt, JSON vs YAML claim payloads).
+- 3-claim-system unification (`cmdRemoteClaim` vs `cmdRemoteClaimPort`, etc.).
+- Tightening the migration gate or deprecating `phenodag v0.4` binaries.
+
+### Reproducing the baseline
+
+```bash
+make verify-no-port-dupes
+# Expected: PASS (count matches allowlist of 472)
+# To grow the allowlist (after intentional consolidation): edit scripts/.port-dupes-allowlist
 ```
 
 ## Reproduction

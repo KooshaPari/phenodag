@@ -1,0 +1,40 @@
+# verify-no-port-dupes.sh allowlist
+#
+# Each line is a (filename:functionNamePort) tuple that is a *known*
+# `*Port`-suffixed duplicate from the v3 / dedup2 wave of the
+# phenodag+dagctl superset-merge. Each entry must eventually be removed
+# as part of phenodag#5 (Phase-4b superset-merge).
+#
+# Format: filename:functionName
+#
+# When you remove a duplicate (and update callers to use the canonical
+# non-Port name), delete the matching line below. When the file is
+# empty, all *Port duplicates have been merged.
+#
+# Tracking: phenodag#5 (Phase-4b Complete superset-merge)
+# Goal: empty this file (FR success criterion: drop duplication <=3%)
+
+# v3 wave aliases (phenodag_v3.go)
+phenodag_v3.go:cmdClaimPort
+phenodag_v3.go:cmdHeartbeatPort
+phenodag_v3.go:cmdRemoteClaimPort
+phenodag_v3.go:cmdRemoteHeartbeatPort
+
+# dedup2 wave aliases (phenodag_dedup2.go)
+phenodag_dedup2.go:simhash64Port
+phenodag_dedup2.go:hammingDistancePort
+phenodag_dedup2.go:ngramShinglesPort
+phenodag_dedup2.go:jaccardNgramPort
+phenodag_dedup2.go:hybridSimilarityPort
+phenodag_dedup2.go:semanticHashPort
+phenodag_dedup2.go:fnv64aPort
+
+# extras wave aliases (phenodag_extras.go)
+phenodag_extras.go:cmdHeartbeatPort
+phenodag_extras.go:checkSchemaPort
+phenodag_extras.go:printASCIIGanttPort
+phenodag_extras.go:printMermaidGanttPort
+phenodag_extras.go:sanitizeIDPort
+phenodag_extras.go:detectRepoPort
+phenodag_extras.go:runGitPort
+phenodag_extras.go:envOrPort
