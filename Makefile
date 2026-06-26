@@ -1,4 +1,4 @@
-.PHONY: build test test-cli-smoke run clean install release lint lint-install smoke doc mod-hygiene preset-validate tidy
+.PHONY: build test test-cli-smoke run clean install release lint lint-install smoke doc mod-hygiene preset-validate tidy docker-build docker-run smoke-obs
 
 BIN     ?= phenodag
 LDFLAGS ?= -s -w
@@ -111,3 +111,22 @@ release: build
 	@echo "Building release with stripped symbols"
 	GOFLAGS="-mod=mod" CGO_ENABLED=0 go build -mod=mod -ldflags "$(LDFLAGS)" -trimpath -o $(BIN) .
 	@ls -la $(BIN)
+
+# Docker build (multi-stage, see Dockerfile).
+docker-build:
+	docker build -t phenodag:latest .
+
+# Quick Docker smoke: init + health + ready + metrics.
+docker-run:
+	docker run --rm -v /tmp/phenodag-data:/home/phenodag/data phenodag:latest init
+	docker run --rm -v /tmp/phenodag-data:/home/phenodag/data phenodag:latest health
+	docker run --rm -v /tmp/phenodag-data:/home/phenodag/data phenodag:latest ready
+
+# Smoke test for observability commands: health, ready, metrics.
+smoke-obs: build
+	@rm -f /tmp/phenodag-obs-smoke.db /tmp/phenodag-obs-smoke.db-shm /tmp/phenodag-obs-smoke.db-wal
+	./$(BIN) init  --width 20 --stages 6 --db /tmp/phenodag-obs-smoke.db
+	./$(BIN) health --db /tmp/phenodag-obs-smoke.db
+	./$(BIN) ready --db /tmp/phenodag-obs-smoke.db
+	./$(BIN) metrics --db /tmp/phenodag-obs-smoke.db
+	@echo "=== smoke-obs OK ==="
