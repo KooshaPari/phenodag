@@ -106,38 +106,52 @@ def cmd_orchestrate(args):
     batch = []
     for r in rows:
         rdict = dict(r)
-        tier = rdict.get("tier", 1)
-        repo = rdict.get("repo", "unknown")
-        domain = rdict.get("domain", "")
-        name = rdict.get("name", f"task-{rdict['id']}")
-        description = rdict.get("description", f"Stage {rdict['stage']} slot {rdict['slot']}")
+        # Map real phenodag columns to forge-friendly fields
+        # subproject is the repo hint (e.g. "forge-mcp-fleet" -> "McpFleet")
+        # category is the domain (e.g. "core", "forge", "registry")
+        # kind is the work type (e.g. "task", "validator")
+        # If subproject is empty, infer from the ID prefix (e.g. "forge-dag-v1-c0001" -> "forge")
+        raw_subproject = rdict.get("subproject") or ""
+        if raw_subproject:
+            repo = raw_subproject
+        else:
+            # Infer from id: "forge-dag-v1-c0001" -> "forge"
+            id_prefix = rdict["id"].split("-")[0] if rdict.get("id") else ""
+            repo = id_prefix or "unknown"
+        domain = rdict.get("category") or ""
+        kind = rdict.get("kind") or "task"
+        stage = rdict.get("stage", 0)
+        slot = rdict.get("slot", 0)
+        # tier: all seeded tasks are L0 for now; future YAML can carry tier
+        tier = 1
+        # Compose a stable name + description
+        repo_cap = "".join(p.capitalize() for p in str(repo).split("-"))
+        name = f"{repo_cap}-{kind}-s{stage}-sl{slot}-{rdict['id'].split('-')[-1]}"
+        if not rdict.get("description"):
+            description = (
+                f"Execute {kind} work on {repo} (stage {stage} slot {slot}); "
+                f"domain={domain}. Read the registry entry and run the canonical "
+                f"validator pattern for {kind} on {repo}."
+            )
+        else:
+            description = rdict["description"]
         priority = rdict.get("priority", 5)
 
-        # Determine forge agent_id based on tier + domain
-        if tier <= 2 and domain in ("bench", "eval", "audit", "registry"):
-            agent = "forge"  # hands-on implementation
-        elif tier == 3:
-            agent = "forge"
-        elif tier >= 4:
-            agent = "muse"  # strategic / planning / meta
+        # Determine forge agent_id based on kind
+        if kind in ("validator", "audit"):
+            agent = "forge"  # validator runs the cycle
         else:
             agent = "forge"
-
-        # Determine complexity: higher-tier tasks are more complex
-        if tier <= 2:
-            complexity = "medium"
-        elif tier == 3:
-            complexity = "complex"
-        else:
-            complexity = "complex"
+        complexity = "complex" if kind in ("validator", "audit") else "medium"
 
         batch.append({
             "id": rdict["id"],
-            "stage": rdict["stage"],
-            "slot": rdict["slot"],
+            "stage": stage,
+            "slot": slot,
             "tier": tier,
             "repo": repo,
             "domain": domain,
+            "kind": kind,
             "name": name,
             "description": description,
             "priority": priority,
@@ -150,17 +164,17 @@ def cmd_orchestrate(args):
                     f"Execute work unit: {name}",
                     f"Repo: {repo}",
                     f"Domain: {domain}",
+                    f"Kind: {kind}",
                     f"Description: {description}",
                 ],
             },
         })
 
-    # Also get total pending count
-    cur.execute("SELECT COUNT(*) as c FROM tasks WHERE status = 'pending'")
+    # Counts: ready = status='ready' (matches phenodag seed convention)
+    cur.execute("SELECT COUNT(*) as c FROM tasks WHERE status = 'ready'")
     total_pending = cur.fetchone()["c"]
     cur.execute("SELECT COUNT(*) as c FROM tasks")
-    total_tasks = cur.fetchone()["c"]
-
+    total_tasks = cur.fetchone()["c"]  # noqa: F841
     output = {
         "batch": batch,
         "batch_size": len(batch),

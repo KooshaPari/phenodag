@@ -415,8 +415,37 @@ def validate_tracera(task):
 
 
 def cmd_loop(args):
-    """Self-extending loop: validate → inject → wait → repeat."""
+    """Self-extending loop: validate → inject → wait → repeat.
+
+    When --findings <file> is provided, ingest real forge subagent
+    output (JSON: {"findings": [...]}) and process them through the
+    same inject_findings() dedup pipeline. The findings file is the
+    standard forge subagent output contract — each entry has the
+    same shape as FINDING_TEMPLATES values.
+    """
     conn = open_db(args.db)
+
+    if args.findings:
+        # Real forge subagent output ingestion
+        with open(args.findings, "r", encoding="utf-8") as f:
+            payload = json.load(f)
+        external_findings = payload.get("findings") or []
+        dry_run = not args.extend
+        injected = inject_findings(
+            conn, external_findings,
+            max_inject=args.max_per_cycle,
+            dry_run=dry_run,
+        )
+        result = {
+            "mode": "findings-ingest",
+            "source_findings": len(external_findings),
+            "injected": injected,
+            "dry_run": dry_run,
+            "timestamp": datetime.utcnow().isoformat(),
+        }
+        print(json.dumps(result, indent=2, default=str))
+        conn.close()
+        return
 
     if args.auto:
         # Continuous mode
@@ -442,6 +471,7 @@ def main():
     parser.add_argument("--validate-batch", type=int, default=10, help="How many pending tasks to validate per cycle")
     parser.add_argument("--max-per-cycle", type=int, default=25, help="Max new work units to inject per cycle")
     parser.add_argument("--tracera-bridge", action="store_true", help="Also run Tracera semantic scorer on each task (emits kind=tracera-score tasks for semantic regressions)")
+    parser.add_argument("--findings", type=str, default=None, help="Path to real forge subagent findings JSON file ({\"findings\": [...]}). Ingested and processed through inject_findings() with the same dedup logic.")
     args = parser.parse_args()
 
     cmd_loop(args)
