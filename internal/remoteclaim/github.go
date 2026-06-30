@@ -42,9 +42,9 @@ type GitHubConfig struct {
 
 // GitHubTransport publishes claim state to a GitHub tracking issue via gh CLI.
 type GitHubTransport struct {
-	cfg    GitHubConfig
-	store  *SQLiteStore
-	gh     GHRunner
+	cfg   GitHubConfig
+	store *SQLiteStore
+	gh    GHRunner
 }
 
 // NewGitHubTransport creates a GitHub-backed transport. Local SQLite remains

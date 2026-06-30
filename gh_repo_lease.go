@@ -31,19 +31,19 @@ import (
 type LeaseKind string
 
 const (
-	LeaseKindRepo      LeaseKind = "repo"      // Full repository
-	LeaseKindBranch    LeaseKind = "branch"    // Specific branch
-	LeaseKindWorktree  LeaseKind = "worktree"  // Worktree within repo
-	LeaseKindSubrepo   LeaseKind = "subrepo"   // Logical subproject
+	LeaseKindRepo     LeaseKind = "repo"     // Full repository
+	LeaseKindBranch   LeaseKind = "branch"   // Specific branch
+	LeaseKindWorktree LeaseKind = "worktree" // Worktree within repo
+	LeaseKindSubrepo  LeaseKind = "subrepo"  // Logical subproject
 )
 
 // LeaseState tracks claim lifecycle (Active → Draining → Expired).
 type LeaseState string
 
 const (
-	LeaseStateActive   LeaseState = "active"    // Lease held, valid until TTL
-	LeaseStateDraining LeaseState = "draining"  // TTL expired, grace period
-	LeaseStateExpired  LeaseState = "expired"   // Returned to pool
+	LeaseStateActive   LeaseState = "active"   // Lease held, valid until TTL
+	LeaseStateDraining LeaseState = "draining" // TTL expired, grace period
+	LeaseStateExpired  LeaseState = "expired"  // Returned to pool
 )
 
 // LeaseReason is a structured reason for the claim (reuses AgilePlus pattern).
@@ -54,17 +54,17 @@ type LeaseReason struct {
 
 // Lease represents an exclusive claim on a remote repo resource.
 type Lease struct {
-	ID              string            // UUID
-	Kind            LeaseKind         // repo, branch, worktree, subrepo
-	Resource        string            // owner/repo[:branch][:worktree]
-	State           LeaseState        // active, draining, expired
-	ChatID          string            // Claiming chat/agent ID
-	TTLSeconds      int64             // Lease duration (default 3600)
-	EpochToken      int64             // Fencing token (clock timestamp)
-	AcquiredAt      time.Time         // Lease start time
-	LastHeartbeat   time.Time         // Last renewal
-	Reason          LeaseReason       // Structured claim reason
-	GitHubCoordPath string            // Path to coordination repo (audit trail)
+	ID              string      // UUID
+	Kind            LeaseKind   // repo, branch, worktree, subrepo
+	Resource        string      // owner/repo[:branch][:worktree]
+	State           LeaseState  // active, draining, expired
+	ChatID          string      // Claiming chat/agent ID
+	TTLSeconds      int64       // Lease duration (default 3600)
+	EpochToken      int64       // Fencing token (clock timestamp)
+	AcquiredAt      time.Time   // Lease start time
+	LastHeartbeat   time.Time   // Last renewal
+	Reason          LeaseReason // Structured claim reason
+	GitHubCoordPath string      // Path to coordination repo (audit trail)
 }
 
 // LeaseStore manages leases with TTL, heartbeat, reap, and transfer semantics.
