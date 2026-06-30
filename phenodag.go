@@ -359,7 +359,7 @@ func v3Core() []seedTask {
 				repo = fleetPriority[(slot-1)%len(fleetPriority)]
 			case 5:
 				if slot <= 16 {
-					repo = fleetPriority[slot-1]
+					repo = fleetPriority[(slot-1)%len(fleetPriority)]
 				} else {
 					repo = activeRepos[slot-16-1]
 				}
@@ -441,7 +441,7 @@ func melosvizCore() []seedTask {
 				repo = fleetPriority[(slot-1)%len(fleetPriority)]
 			case 5:
 				if slot <= 16 {
-					repo = fleetPriority[slot-1]
+					repo = fleetPriority[(slot-1)%len(fleetPriority)]
 				} else {
 					repo = activeRepos[slot-16-1]
 				}
@@ -454,7 +454,7 @@ func melosvizCore() []seedTask {
 			case 7:
 				// SUSTAIN: per-subproject retro + debt retire + ADR
 				if slot <= 16 {
-					repo = fleetPriority[slot-1]
+					repo = fleetPriority[(slot-1)%len(fleetPriority)]
 				} else {
 					repo = "fleet-wide"
 				}
@@ -924,7 +924,7 @@ func cmdSeed(args []string) error {
 	// goroutines; v3-180 and melosviz-185 are kept synchronous for
 	// backwards compatibility.
 	var (
-		wg          sync.WaitGroup
+		wg                             sync.WaitGroup
 		apCore, apSide, trCore, trSide []seedTask
 	)
 	wg.Add(4)
@@ -1281,7 +1281,7 @@ func cmdPick(args []string) error {
 		// Read the task fields for output
 		var (
 			desc, repo, kind, side string
-			stage, slot           int
+			stage, slot            int
 		)
 		err = tx.QueryRow(`SELECT description, repo, kind, side_dag, stage, slot FROM tasks WHERE id=?`, id).
 			Scan(&desc, &repo, &kind, &side, &stage, &slot)
@@ -1821,7 +1821,7 @@ func cmdDupes(args []string) error {
 	sort.Strings(roots)
 	type groupOut struct {
 		Members    []string `json:"members"`
-		Similarity float64   `json:"similarity"`
+		Similarity float64  `json:"similarity"`
 	}
 	var grps []groupOut
 	for _, r := range roots {
@@ -1924,16 +1924,16 @@ func cmdExport(args []string) error {
 	fmt.Fprintf(w, "| Status | Stage | Task | Kind | Repo | Description |\n")
 	fmt.Fprintf(w, "|---|---|---|---|---|---|\n")
 	for _, r := range allRows {
-		emoji := "⬜"
+		emoji := " "
 		switch r.status {
 		case "done":
-			emoji = "✅"
+			emoji = "✓"
 		case "in_progress":
-			emoji = "🔄"
+			emoji = "↻"
 		case "blocked":
-			emoji = "🚫"
+			emoji = "✗"
 		case "failed":
-			emoji = "❌"
+			emoji = "✕"
 		}
 		stageLabel := fmt.Sprintf("L%d", r.stage)
 		if r.stage == 0 {

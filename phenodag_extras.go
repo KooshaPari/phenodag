@@ -7,10 +7,11 @@
 // `tasks`/`edges`/`agents`/`repos`/`side_dags` schema.
 //
 // New commands (alpha-sorted):
-//   add, agent-stats, burndown, completion, critical-path, csv, dashboard,
-//   dedup-explain, diff, dispatch, doctor, gantt, html, mermaid, next,
-//   promote, remote-claim, remote-claims, remote-heartbeat, remote-reap,
-//   remote-release, remote-transfer, sweep, thrash, topo, where, worktree-claim.
+//
+//	add, agent-stats, burndown, completion, critical-path, csv, dashboard,
+//	dedup-explain, diff, dispatch, doctor, gantt, html, mermaid, next,
+//	promote, remote-claim, remote-claims, remote-heartbeat, remote-reap,
+//	remote-release, remote-transfer, sweep, thrash, topo, where, worktree-claim.
 //
 // NOTE: This file is intentionally large (1480 lines) as an interim artifact
 // of the superset-merge integration (Phase 4). It will be refactored and split

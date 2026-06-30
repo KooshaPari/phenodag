@@ -19,3 +19,11 @@ phenodag
 
 phenodag.exe
 
+# Secrets
+.env
+.env.*
+*.key
+*.pem
+*.secret
+secrets/
+

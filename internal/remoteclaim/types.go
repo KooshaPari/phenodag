@@ -65,27 +65,27 @@ func (c Claim) IsExpired(now time.Time) bool {
 
 // Event is the JSON envelope written to GitHub issue comments.
 type Event struct {
-	V       int    `json:"v"`
-	Event   string `json:"event"`
-	ClaimID string `json:"claim_id"`
-	Agent   string `json:"agent,omitempty"`
-	ToClaim string `json:"to_claim_id,omitempty"`
-	ToAgent string `json:"to_agent,omitempty"`
-	Reason  string `json:"reason,omitempty"`
+	V        int    `json:"v"`
+	Event    string `json:"event"`
+	ClaimID  string `json:"claim_id"`
+	Agent    string `json:"agent,omitempty"`
+	ToClaim  string `json:"to_claim_id,omitempty"`
+	ToAgent  string `json:"to_agent,omitempty"`
+	Reason   string `json:"reason,omitempty"`
 	Resource string `json:"resource,omitempty"`
-	Kind    string `json:"kind,omitempty"`
-	Epoch   int64  `json:"epoch"`
-	TTL     int64  `json:"ttl,omitempty"`
-	At      string `json:"at"`
+	Kind     string `json:"kind,omitempty"`
+	Epoch    int64  `json:"epoch"`
+	TTL      int64  `json:"ttl,omitempty"`
+	At       string `json:"at"`
 }
 
 var (
-	ErrConflict    = errors.New("claim conflict: resource already held")
-	ErrNotFound    = errors.New("claim not found")
-	ErrWrongOwner  = errors.New("wrong claim owner")
-	ErrWrongState  = errors.New("wrong claim state for operation")
-	ErrStaleEpoch  = errors.New("stale epoch: fencing rejected write")
-	ErrNoTracking  = errors.New("no tracking issue configured")
+	ErrConflict   = errors.New("claim conflict: resource already held")
+	ErrNotFound   = errors.New("claim not found")
+	ErrWrongOwner = errors.New("wrong claim owner")
+	ErrWrongState = errors.New("wrong claim state for operation")
+	ErrStaleEpoch = errors.New("stale epoch: fencing rejected write")
+	ErrNoTracking = errors.New("no tracking issue configured")
 )
 
 // ParseOwnerRepo splits "owner/name" into owner and name.

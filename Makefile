@@ -7,7 +7,7 @@ build:
 	GOFLAGS="-mod=mod" go build -mod=mod -ldflags "$(LDFLAGS)" -o $(BIN) .
 
 test:
-	GOFLAGS="-mod=mod" go test -mod=mod ./...
+	GOFLAGS="-mod=mod" go test -race -mod=mod ./...
 
 run: build
 	./$(BIN) --help

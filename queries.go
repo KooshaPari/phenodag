@@ -169,16 +169,16 @@ func queryTasksMainDAGFull(db *sql.DB) []struct {
 
 // queryAllTasksDetails queries all tasks with full details.
 func queryAllTasksDetails(db *sql.DB) []struct {
-	ID          string
-	Stage       int
-	Status      string
-	Subproject  string
+	ID         string
+	Stage      int
+	Status     string
+	Subproject string
 } {
 	var result []struct {
-		ID          string
-		Stage       int
-		Status      string
-		Subproject  string
+		ID         string
+		Stage      int
+		Status     string
+		Subproject string
 	}
 	rows, err := db.Query("SELECT id, stage, COALESCE(status,''), COALESCE(subproject,'') FROM tasks")
 	if err != nil {
@@ -194,10 +194,10 @@ func queryAllTasksDetails(db *sql.DB) []struct {
 			continue
 		}
 		result = append(result, struct {
-			ID          string
-			Stage       int
-			Status      string
-			Subproject  string
+			ID         string
+			Stage      int
+			Status     string
+			Subproject string
 		}{id, stage, status, sp})
 	}
 	return result
