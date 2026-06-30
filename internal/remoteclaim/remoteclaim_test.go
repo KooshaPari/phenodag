@@ -17,11 +17,11 @@ func TestClaimAndHeartbeat(t *testing.T) {
 
 	transport := NewLocalTransport(store)
 	issued, err := transport.Claim(ctx, Claim{
-		AgentID: "chat-A",
-		Kind:    KindRepo,
-		Repo:    "HexaKit",
+		AgentID:    "chat-A",
+		Kind:       KindRepo,
+		Repo:       "HexaKit",
 		TTLSeconds: 3600,
-		Reason:  Reason{Kind: ReasonTaskRef, Value: "wp-1"},
+		Reason:     Reason{Kind: ReasonTaskRef, Value: "wp-1"},
 	})
 	if err != nil {
 		t.Fatalf("claim: %v", err)

@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"log"
 	"math"
 	"os"
 	"path/filepath"
@@ -88,7 +89,9 @@ func migrate(db *sql.DB) error {
 		`ALTER TABLE agents ADD COLUMN last_heartbeat TEXT NOT NULL DEFAULT ''`,
 		`ALTER TABLE repos ADD COLUMN is_mangled INTEGER NOT NULL DEFAULT 0`,
 	} {
-		_, _ = db.Exec(s)
+		if _, err := db.Exec(s); err != nil {
+			log.Printf("migrate alter (idempotent): %v", err)
+		}
 	}
 	for _, s := range []string{
 		`CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status)`,
@@ -293,9 +296,11 @@ func cmdInit(args []string) error {
 	fs.Parse(args)
 
 	if *force {
-		_ = os.Remove(gDBPath)
-		_ = os.Remove(gDBPath + "-shm")
-		_ = os.Remove(gDBPath + "-wal")
+		for _, p := range []string{gDBPath, gDBPath + "-shm", gDBPath + "-wal"} {
+			if err := os.Remove(p); err != nil && !os.IsNotExist(err) {
+				return fmt.Errorf("force remove %s: %w", p, err)
+			}
+		}
 	}
 
 	db, err := openDB(gDBPath)
@@ -1948,7 +1953,9 @@ func cmdDupes(args []string) error {
 	if err != nil {
 		return err
 	}
-	_, _ = tx.Exec(`DELETE FROM duplicate_groups`)
+	if _, err := tx.Exec(`DELETE FROM duplicate_groups`); err != nil {
+		return fmt.Errorf("delete duplicate_groups: %w", err)
+	}
 	count := 0
 	var roots []string
 	for r := range groups {
@@ -2037,10 +2044,16 @@ func cmdExport(args []string) error {
 	}
 	for rows.Next() {
 		var r exportRow
-		_ = rows.Scan(&r.id, &r.stage, &r.slot, &r.desc, &r.repo, &r.sub, &r.cat, &r.lane, &r.br, &r.kind, &r.prio, &r.sh, &r.side, &r.status, &r.ag)
+		if err := rows.Scan(&r.id, &r.stage, &r.slot, &r.desc, &r.repo, &r.sub, &r.cat, &r.lane, &r.br, &r.kind, &r.prio, &r.sh, &r.side, &r.status, &r.ag); err != nil {
+			rows.Close()
+			return fmt.Errorf("export scan: %w", err)
+		}
 		allRows = append(allRows, r)
 	}
 	rows.Close()
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("export rows: %w", err)
+	}
 	var w *os.File
 	if *out == "" {
 		w = os.Stdout
@@ -2053,7 +2066,7 @@ func cmdExport(args []string) error {
 	}
 	fmt.Fprintf(w, "# phenodag %s export\n\n", version)
 	var preset string
-	_ = db.QueryRow(`SELECT value FROM dag_meta WHERE key='preset_description'`).Scan(&preset)
+	_ = db.QueryRow(`SELECT value FROM dag_meta WHERE key='preset_description'`).Scan(&preset) // best-effort: preset optional
 	if preset != "" {
 		fmt.Fprintf(w, "**Preset**: %s\n\n", preset)
 	}

@@ -25,6 +25,9 @@ func queryTasksIDStatus(db *sql.DB) map[string]string {
 		}
 		result[id] = status
 	}
+	if err := rows.Err(); err != nil {
+		log.Printf("queryTasksIDStatus rows.Err: %v", err)
+	}
 	return result
 }
 
@@ -45,6 +48,9 @@ func queryTaskIDs(db *sql.DB) []string {
 		}
 		result = append(result, id)
 	}
+	if err := rows.Err(); err != nil {
+		log.Printf("queryTaskIDs rows.Err: %v", err)
+	}
 	return result
 }
 
@@ -64,6 +70,9 @@ func queryFailedTasksBeforeThreshold(db *sql.DB, threshold int64) []string {
 			continue
 		}
 		result = append(result, id)
+	}
+	if err := rows.Err(); err != nil {
+		log.Printf("queryFailedTasksBeforeThreshold rows.Err: %v", err)
 	}
 	return result
 }
@@ -98,6 +107,9 @@ func queryTasksMainDAG(db *sql.DB) []struct {
 			Status string
 		}{id, stage, status})
 	}
+	if err := rows.Err(); err != nil {
+		log.Printf("queryTasksMainDAG rows.Err: %v", err)
+	}
 	return result
 }
 
@@ -126,6 +138,9 @@ func queryTasksWithSubproject(db *sql.DB) []struct {
 			ID         string
 			Subproject string
 		}{id, sp})
+	}
+	if err := rows.Err(); err != nil {
+		log.Printf("queryTasksWithSubproject rows.Err: %v", err)
 	}
 	return result
 }
@@ -164,21 +179,24 @@ func queryTasksMainDAGFull(db *sql.DB) []struct {
 			Description string
 		}{id, stage, status, desc})
 	}
+	if err := rows.Err(); err != nil {
+		log.Printf("queryTasksMainDAGFull rows.Err: %v", err)
+	}
 	return result
 }
 
 // queryAllTasksDetails queries all tasks with full details.
 func queryAllTasksDetails(db *sql.DB) []struct {
-	ID          string
-	Stage       int
-	Status      string
-	Subproject  string
+	ID         string
+	Stage      int
+	Status     string
+	Subproject string
 } {
 	var result []struct {
-		ID          string
-		Stage       int
-		Status      string
-		Subproject  string
+		ID         string
+		Stage      int
+		Status     string
+		Subproject string
 	}
 	rows, err := db.Query("SELECT id, stage, COALESCE(status,''), COALESCE(subproject,'') FROM tasks")
 	if err != nil {
@@ -194,11 +212,14 @@ func queryAllTasksDetails(db *sql.DB) []struct {
 			continue
 		}
 		result = append(result, struct {
-			ID          string
-			Stage       int
-			Status      string
-			Subproject  string
+			ID         string
+			Stage      int
+			Status     string
+			Subproject string
 		}{id, stage, status, sp})
+	}
+	if err := rows.Err(); err != nil {
+		log.Printf("queryAllTasksDetails rows.Err: %v", err)
 	}
 	return result
 }
@@ -232,6 +253,9 @@ func queryTasksStageSummary(db *sql.DB) []struct {
 			Done  int
 		}{stage, total, done})
 	}
+	if err := rows.Err(); err != nil {
+		log.Printf("queryTasksStageSummary rows.Err: %v", err)
+	}
 	return result
 }
 
@@ -264,6 +288,9 @@ func queryIncompleteTasksWithDescription(db *sql.DB) []struct {
 			Subproject  string
 		}{id, desc, sp})
 	}
+	if err := rows.Err(); err != nil {
+		log.Printf("queryIncompleteTasksWithDescription rows.Err: %v", err)
+	}
 	return result
 }
 
@@ -289,6 +316,9 @@ func queryEdges(db *sql.DB) []struct {
 		result = append(result, struct {
 			From, To string
 		}{f, t})
+	}
+	if err := rows.Err(); err != nil {
+		log.Printf("queryEdges rows.Err: %v", err)
 	}
 	return result
 }
@@ -321,6 +351,9 @@ func queryAgents(db *sql.DB) []struct {
 			Status   string
 			LastSeen string
 		}{id, status, lastSeen})
+	}
+	if err := rows.Err(); err != nil {
+		log.Printf("queryAgents rows.Err: %v", err)
 	}
 	return result
 }
@@ -383,6 +416,9 @@ func queryTasksWithAllFields(db *sql.DB) []struct {
 			Description string
 		}{id, stage, slot, status, sp, cat, kind, priority, desc})
 	}
+	if err := rows.Err(); err != nil {
+		log.Printf("queryTasksWithAllFields rows.Err: %v", err)
+	}
 	return result
 }
 
@@ -418,6 +454,9 @@ func queryTasksByStageWithDescription(db *sql.DB) []struct {
 			Subproject  string
 			Description string
 		}{id, stage, sp, desc})
+	}
+	if err := rows.Err(); err != nil {
+		log.Printf("queryTasksByStageWithDescription rows.Err: %v", err)
 	}
 	return result
 }

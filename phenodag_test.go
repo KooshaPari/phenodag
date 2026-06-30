@@ -5,8 +5,13 @@ package main
 // Run with:   go test -mod=mod ./...
 
 import (
+	"database/sql"
+	"os"
 	"strings"
 	"testing"
+
+	"gopkg.in/yaml.v3"
+	_ "modernc.org/sqlite"
 )
 
 func TestTokens(t *testing.T) {
@@ -329,5 +334,59 @@ func TestMcpFleet90PickClaim(t *testing.T) {
 	}
 	if err := cmdDone([]string{"--agent", "test-agent", "--task", "eco-001"}); err != nil {
 		t.Fatalf("done: %v", err)
+	}
+}
+
+// --- L14/L19 audit remediation tests ---
+
+func TestMigrateIdempotent(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := dir + "/test.db"
+	db, err := sql.Open("sqlite", "file:"+dbPath+"?_pragma=journal_mode(WAL)")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	// First call must succeed
+	if err := migrate(db); err != nil {
+		t.Fatalf("first migrate: %v", err)
+	}
+
+	// Second call must also succeed (idempotent)
+	if err := migrate(db); err != nil {
+		t.Fatalf("second migrate (idempotent): %v", err)
+	}
+}
+
+func TestDependabotYAML(t *testing.T) {
+	data, err := os.ReadFile(".github/dependabot.yml")
+	if err != nil {
+		t.Fatalf("read dependabot.yml: %v", err)
+	}
+	var cfg struct {
+		Version int `yaml:"version"`
+		Updates []struct {
+			Ecosystem string `yaml:"package-ecosystem"`
+			Directory string `yaml:"directory"`
+		} `yaml:"updates"`
+	}
+	if err := yaml.Unmarshal(data, &cfg); err != nil {
+		t.Fatalf("yaml unmarshal: %v", err)
+	}
+	if cfg.Version != 2 {
+		t.Errorf("dependabot version = %d, want 2", cfg.Version)
+	}
+	if len(cfg.Updates) == 0 {
+		t.Fatal("dependabot: expected at least one update config")
+	}
+	hasGoMod := false
+	for _, u := range cfg.Updates {
+		if u.Ecosystem == "gomod" && u.Directory == "/" {
+			hasGoMod = true
+		}
+	}
+	if !hasGoMod {
+		t.Error("dependabot: expected gomod ecosystem update for root")
 	}
 }
