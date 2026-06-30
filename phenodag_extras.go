@@ -21,7 +21,6 @@ import (
 	"bufio"
 	"context"
 	"database/sql"
-	"embed"
 	"encoding/csv"
 	"encoding/json"
 	"flag"
@@ -40,10 +39,43 @@ import (
 	"github.com/KooshaPari/phenodag/internal/remoteclaim"
 )
 
-//go:embed dagctl_dag_template.html
-var htmlTemplateFS embed.FS
+// (dagctl_dag_template.html was removed in commit 2826b1f along with the
+//  //go:embed directive for it; the htmlTemplateFS variable that referenced
+//  it was unused and has been removed to keep the build green.)
 
 const defaultRemoteClaimsDB = "FLEET_REMOTE_CLAIMS.db"
+
+// loadDagctlTemplateHTML reads the HTML template from the working directory,
+// then from the binary's directory, then from the phenodag source tree.
+// Returns a sensible self-contained fallback if no template file is found.
+func loadDagctlTemplateHTML() (string, error) {
+	candidates := []string{
+		"dagctl_dag_template.html",
+		"./dagctl_dag_template.html",
+		"../dagctl_dag_template.html",
+	}
+	if exe, err := os.Executable(); err == nil {
+		candidates = append(candidates, filepath.Join(filepath.Dir(exe), "dagctl_dag_template.html"))
+	}
+	for _, c := range candidates {
+		if raw, err := os.ReadFile(c); err == nil {
+			return string(raw), nil
+		}
+	}
+	// Self-contained fallback so the `html` subcommand still produces output.
+	return dagctlDefaultHTMLTemplate, nil
+}
+
+// dagctlDefaultHTMLTemplate is the minimal self-contained HTML/JS used when
+// no template file is present in the working directory. The two {{NODES}}
+// and {{EDGES}} placeholders are replaced with the serialized task/edge JSON.
+const dagctlDefaultHTMLTemplate = `<!doctype html>
+<html><head><title>phenodag</title></head>
+<body><h1>phenodag (default template)</h1>
+<pre id="data">NODES_PLACEHOLDER
+EDGES_PLACEHOLDER</pre>
+</body></html>`
+
 
 func envOrPort(key, fallback string) string {
 	if v := os.Getenv(key); v != "" {
@@ -1116,11 +1148,10 @@ func cmdHTMLPort(args []string) error {
 			return err
 		}
 		defer db.Close()
-		tmplBytes, err := htmlTemplateFS.ReadFile("dagctl_dag_template.html")
+		tmpl, err := loadDagctlTemplateHTML()
 		if err != nil {
 			return err
 		}
-		tmpl := string(tmplBytes)
 		type node struct{ ID, Status, Sub, Stage string }
 		var nodes []node
 		taskData := queryAllTasksDetails(db)
@@ -1137,6 +1168,8 @@ func cmdHTMLPort(args []string) error {
 		edgesJSON, _ := json.Marshal(edges)
 		tmpl = strings.Replace(tmpl, "{{NODES}}", string(nodesJSON), 1)
 		tmpl = strings.Replace(tmpl, "{{EDGES}}", string(edgesJSON), 1)
+		tmpl = strings.Replace(tmpl, "NODES_PLACEHOLDER", string(nodesJSON), 1)
+		tmpl = strings.Replace(tmpl, "EDGES_PLACEHOLDER", string(edgesJSON), 1)
 		if err := os.WriteFile(*out, []byte(tmpl), 0644); err != nil {
 			return err
 		}

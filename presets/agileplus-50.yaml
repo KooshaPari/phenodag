@@ -1,0 +1,36 @@
+name: agileplus-50
+description: AgilePlus fleet (4 stages x 5 width + 6 side-DAGs x 5; use `fill` to fill width-20 slots)
+core:
+  stages: 4
+  width: 5
+side_dags:
+  - id: sd-ap-001
+    name: agileplus spec
+    description: Spec-driven-development templates
+    size: 5
+    repo: AgilePlus
+  - id: sd-ap-002
+    name: agileplus work-unit
+    description: Work-unit lifecycle + audit trail
+    size: 5
+    repo: AgilePlus
+  - id: sd-ap-003
+    name: agileplus pillar
+    description: 71+ pillar audit scoring
+    size: 5
+    repo: AgilePlus
+  - id: sd-ap-004
+    name: agileplus traceability
+    description: Work-unit -> commit traceability
+    size: 5
+    repo: AgilePlus
+  - id: sd-ap-005
+    name: agileplus runner
+    description: CI runner + check matrix
+    size: 5
+    repo: AgilePlus
+  - id: sd-ap-006
+    name: agileplus dashboard
+    description: Pillar scorecard dashboard
+    size: 5
+    repo: AgilePlus

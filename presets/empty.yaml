@@ -1,0 +1,6 @@
+name: empty
+description: Empty preset (0 core + 0 side); useful for clean init tests
+core:
+  stages: 0
+  width: 0
+side_dags: []

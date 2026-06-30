@@ -1,0 +1,36 @@
+name: mcp-fleet-60
+description: MCP polyrepo execution plan (6 stages x 5 width + 6 side-DAGs x 5; includes `sd-dagctl` merge pool)
+core:
+  stages: 6
+  width: 5
+side_dags:
+  - id: sd-mcp-router
+    name: mcp router
+    description: Phenotype MCP router decisions
+    size: 5
+    repo: phenoRouterMonitor
+  - id: sd-mcp-asset
+    name: mcp asset
+    description: MCP asset store + side-load
+    size: 5
+    repo: PhenoMCPServers
+  - id: sd-mcp-test
+    name: mcp testing
+    description: MCP conformance test harness
+    size: 5
+    repo: PhenoMCPServers
+  - id: sd-mcp-cli
+    name: mcp cli
+    description: MCP CLI for tool invocation
+    size: 5
+    repo: pheno-cli
+  - id: sd-dagctl
+    name: dagctl merge
+    description: dagctl -> phenodag superset merge pool
+    size: 5
+    repo: phenodag
+  - id: sd-mcp-otel
+    name: mcp otel
+    description: MCP-side OpenTelemetry traces
+    size: 5
+    repo: pheno-otel

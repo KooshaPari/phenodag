@@ -1,0 +1,66 @@
+# phenodag pre-commit configuration
+#
+# DAG-T9: Hygiene gardening for phenodag. Locks in gofmt + go vet + staticcheck
+# on every commit. Run `pre-commit install` once after cloning; subsequent
+# commits auto-run the hooks.
+#
+# Why this matters: the lane owner is also shipping cross-repo SOTA work
+# (Benchora, portage, Tracera) and a failing build should fail *here* before
+# the diff escapes to a PR. staticcheck is the de-facto Go linter (SOTA 2026
+# alongside `go vet`'s built-in checks).
+#
+# Install:
+#   pip install pre-commit
+#   go install honnef.co/go/tools/cmd/staticcheck@latest
+#   pre-commit install
+#
+# Run manually against all files:
+#   pre-commit run --all-files
+#
+# Skip a hook in an emergency:
+#   git commit --no-verify -m "..."
+#
+# See also:
+#   - .github/workflows/ci.yml (the same checks run in CI; pre-commit
+#     catches the same issues locally before the push).
+#   - phenotype-org-audits/audit-30-pillar/L0..L30 for the broader
+#     quality-gate catalogue (71+ pillars total).
+repos:
+  - repo: local
+    hooks:
+      - id: gofmt
+        name: gofmt
+        description: Run gofmt -l -s to surface unformatted Go files.
+        entry: bash -c 'test -z "$(gofmt -l -s . | grep -v vendor/ | grep -v "\.git/")"'
+        language: system
+        types: [go]
+        pass_filenames: false
+      - id: go-vet
+        name: go vet
+        description: Run go vet ./... for whole-program correctness checks.
+        entry: go vet ./...
+        language: system
+        types: [go]
+        pass_filenames: false
+      - id: staticcheck
+        name: staticcheck
+        description: Run staticcheck ./... for deeper bug-class detection.
+        entry: staticcheck ./...
+        language: system
+        types: [go]
+        pass_filenames: false
+      - id: go-mod-tidy
+        name: go mod tidy check
+        description: Fail if `go mod tidy` would change go.mod / go.sum.
+        entry: bash -c 'cp go.mod /tmp/_gomod && cp go.sum /tmp/_gosum && go mod tidy && diff -u /tmp/_gomod go.mod && diff -u /tmp/_gosum go.sum'
+        language: system
+        files: ^(go\.mod|go\.sum|\.go)$
+        pass_filenames: false
+      - id: secrets
+        name: secret scan
+        description: Block commits that contain common secret patterns.
+        # Lightweight: catches the obvious 90%; the CI side uses gitleaks
+        # with the full ruleset (see .github/workflows/ci.yml).
+        entry: bash -c '! grep -rEn "(AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{36}|-----BEGIN (RSA |EC )?PRIVATE KEY-----|xoxb-[0-9A-Za-z-]+)" . --include="*.go" --include="*.md" --include="*.yaml" --include="*.yml" 2>/dev/null | grep -v vendor/ | grep -v "\.git/"'
+        language: system
+        pass_filenames: false
