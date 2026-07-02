@@ -19,11 +19,31 @@
 > human operator. Bug reports and contributions are still welcome, but please
 > expect AI-generated code, comments, and documentation throughout.
 <!-- AI-DD-META:END -->
+> **Work state:** RELEASE-CANDIDATE · **Progress:** `████████░░ 80%`
+> Headless Go fleet DAG CLI — durable SQLite-backed work queue with atomic claims and fuzzy dedup · v3.3.1 · updated 2026-06-26
+
 # phenodag — multi-agent multi-project DAG (Go)
+
+## State
+
+Progress: `[████████░░] 80%` — dagctl absorption complete, CI green, release-candidate polish (README + docs) in flight.
+
+**What phenodag does:** phenodag is a headless, single-binary Go CLI that maintains a **durable DAG** of fleet work items in SQLite and an **atomic-claim ledger** so parallel agents never double-pick the same task. Each `pick`, `claim`, and `done` transition is persisted transactionally (POSIX flock + `BEGIN IMMEDIATE`); heartbeats and reclaim handle stale agents, and hybrid fuzzy-duplicate detection collapses semantically identical tasks with different wording.
 
 Headless single-binary Go CLI for a fleet work queue. Self-contained SQLite backend (modernc.org/sqlite, pure Go) so it runs offline. Sources: single-file `phenodag.go` (~1.7K LOC) + `internal/remoteclaim/` (POSIX flock + SQLite store).
 
 **Why this exists**: 300+ local repos + 65+ GitHub repos, dozens of parallel agents, and constant risk of (a) two agents picking the same work and (b) two agents independently writing semantically-identical tasks with different wording. `phenodag` solves both with atomic SQLite claims + hybrid fuzzy-duplicate detection.
+
+## Usage / Quickstart
+
+```bash
+git clone https://github.com/KooshaPari/phenodag.git && cd phenodag
+go build -mod=mod -o phenodag .
+./phenodag init   --width 20 --stages 6 --db FLEET_DAG.db
+./phenodag seed   --preset v3-180 --db FLEET_DAG.db
+./phenodag pick   --agent me --db FLEET_DAG.db
+./phenodag status --db FLEET_DAG.db
+```
 
 ## Quick start
 
