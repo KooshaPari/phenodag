@@ -45,3 +45,6 @@ coverage.html
 *.log
 logs/
 
+# Environment (actual .env files; .env.example is tracked)
+.env
+

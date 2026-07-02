@@ -127,6 +127,8 @@ func withLock(path string, fn func() error) error {
 // ---------- main ----------
 
 func main() {
+	initLogger()
+
 	if len(os.Args) < 2 {
 		usage()
 		os.Exit(1)
@@ -136,12 +138,19 @@ func main() {
 	for i, a := range args {
 		if a == "--db" && i+1 < len(args) {
 			gDBPath = args[i+1]
-			break
+		}
+		if a == "--log-level" && i+1 < len(args) {
+			gLogLevel = args[i+1]
+		}
+		if a == "--log-format" && i+1 < len(args) {
+			gLogFormat = args[i+1]
 		}
 	}
 	if v := os.Getenv("PHENODAG_DB"); v != "" {
 		gDBPath = v
 	}
+	// Re-init logger now that global flags are known
+	logging.Init(gLogLevel, gLogFormat)
 
 	var err error
 	switch cmd {
@@ -239,6 +248,12 @@ func main() {
 		err = cmdMergePort(args)
 	case "next":
 		err = cmdNextPort(args)
+	case "health":
+		err = cmdHealth(args)
+	case "ready":
+		err = cmdReady(args)
+	case "metrics":
+		err = cmdMetrics(args)
 	case "version", "--version", "-v":
 		fmt.Printf("phenodag %s\n", version)
 		return
@@ -251,6 +266,7 @@ func main() {
 		os.Exit(1)
 	}
 	if err != nil {
+		logging.Error(ctx(), "command failed", "cmd", cmd, "error", err)
 		fmt.Fprintf(os.Stderr, "%s: %v\n", cmd, err)
 		os.Exit(1)
 	}
@@ -260,6 +276,11 @@ func usage() {
 	fmt.Fprintf(os.Stderr, `phenodag %s — multi-agent multi-project DAG
 
 Usage: phenodag <command> [flags]
+
+Global flags:
+  --db PATH        Path to SQLite DB (default phenodag.db; env PHENODAG_DB)
+  --log-level LVL  Log level: debug|info|warn|error (default info; env PHENODAG_LOG_LEVEL)
+  --log-format FMT Log format: text|json (default text; env PHENODAG_LOG_FORMAT)
 
 Commands:
   init       Initialize DB (idempotent: applies migrations)
@@ -277,6 +298,9 @@ Commands:
   scan       Scan local/remote repos
   dupes      Find fuzzy-duplicate groups
   export     Export DAG to markdown
+  health     Health check (db reachable)
+  ready      Readiness check (db initialised)
+  metrics    Export Prometheus-format metrics
   version    Show version
   help       Show this help
 
