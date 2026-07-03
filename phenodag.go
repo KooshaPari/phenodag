@@ -34,6 +34,7 @@ import (
 
 	"github.com/KooshaPari/phenodag/internal/preset"
 )
+
 const version = "1.0.0-rc.1"
 
 var gDBPath = "phenodag.db"
@@ -149,8 +150,8 @@ func main() {
 	if v := os.Getenv("PHENODAG_DB"); v != "" {
 		gDBPath = v
 	}
-	// Re-init logger now that global flags are known
-	logging.Init(gLogLevel, gLogFormat)
+	// Re-init logger now that global flags are known.
+	initLogger()
 
 	var err error
 	switch cmd {
@@ -160,6 +161,8 @@ func main() {
 		err = cmdSeed(args)
 	case "seed-yaml":
 		err = cmdSeedYAML(args)
+	case "load":
+		err = cmdLoad(args)
 	case "status":
 		err = cmdStatus(args)
 	case "validate":
@@ -266,7 +269,7 @@ func main() {
 		os.Exit(1)
 	}
 	if err != nil {
-		logging.Error(ctx(), "command failed", "cmd", cmd, "error", err)
+		log.Printf("command failed: cmd=%s error=%v", cmd, err)
 		fmt.Fprintf(os.Stderr, "%s: %v\n", cmd, err)
 		os.Exit(1)
 	}
@@ -285,6 +288,7 @@ Global flags:
 Commands:
   init       Initialize DB (idempotent: applies migrations)
   seed       Seed from built-in v3-180 preset (180 tasks)
+  load       Load repo/branch/task/state tuples from YAML
   status     Show task counts
   validate   Check DAG (cycles, dangles, width)
   pick       Atomically pick ready task (--agent ID)
@@ -949,16 +953,16 @@ func seedMcpFleetEdges(estmt *sql.Stmt, maxStage, width int, idFmt func(stage, s
 	}
 }
 
-
 // cmdSeedYAML loads a preset from `presets/<name>.yaml` and seeds the DB.
 // This is the externalized version of cmdSeed — useful for new fleets
 // without recompiling the binary. Existing built-in presets (v3-180, etc.)
 // are still served by cmdSeed for backwards compatibility.
 //
 // Usage:
-//   ./phenodag seed-yaml --preset v3-180 --db FLEET_DAG.db
-//   ./phenodag seed-yaml --list                # list all available presets
-//   ./phenodag seed-yaml --dir /path/to/presets --preset forge-120
+//
+//	./phenodag seed-yaml --preset v3-180 --db FLEET_DAG.db
+//	./phenodag seed-yaml --list                # list all available presets
+//	./phenodag seed-yaml --dir /path/to/presets --preset forge-120
 func cmdSeedYAML(args []string) error {
 	fs := flag.NewFlagSet("seed-yaml", flag.ExitOnError)
 	presetName := fs.String("preset", "v3-180", "preset name (matches `presets/<name>.yaml`)")
@@ -1078,7 +1082,6 @@ func sideDAGCounter(id string) int {
 	return int(h[0])<<8 | int(h[1])
 }
 
-
 func cmdSeed(args []string) error {
 	fs := flag.NewFlagSet("seed", flag.ExitOnError)
 	preset := fs.String("preset", "v3-180", "preset name (v3-180, melosviz-185, agileplus-50, tracera-50, mcp-fleet-60, mcp-fleet-90)")
@@ -1089,7 +1092,7 @@ func cmdSeed(args []string) error {
 	// goroutines; v3-180 and melosviz-185 are kept synchronous for
 	// backwards compatibility.
 	var (
-		wg          sync.WaitGroup
+		wg                             sync.WaitGroup
 		apCore, apSide, trCore, trSide []seedTask
 	)
 	wg.Add(4)
@@ -1446,7 +1449,7 @@ func cmdPick(args []string) error {
 		// Read the task fields for output
 		var (
 			desc, repo, kind, side string
-			stage, slot           int
+			stage, slot            int
 		)
 		err = tx.QueryRow(`SELECT description, repo, kind, side_dag, stage, slot FROM tasks WHERE id=?`, id).
 			Scan(&desc, &repo, &kind, &side, &stage, &slot)
@@ -1498,17 +1501,7 @@ func cmdClaim(args []string) error {
 			return err
 		}
 		defer tx.Rollback()
-		var existing string
-		err = tx.QueryRow(`SELECT agent FROM claims
-			WHERE repo=? AND branch=? AND worktree=?`, *repo, *branch, *worktree).Scan(&existing)
-		if err == nil && existing != "" && existing != *agent {
-			return fmt.Errorf("already claimed by %q", existing)
-		}
-		_, err = tx.Exec(`INSERT OR REPLACE INTO claims
-			(agent, task_id, repo, branch, worktree, status, claimed_at)
-			VALUES (?, ?, ?, ?, ?, 'active', ?)`,
-			*agent, *taskID, *repo, *branch, *worktree, nowUTC())
-		if err != nil {
+		if err := claimTask(tx, *agent, *taskID, *repo, *branch, *worktree); err != nil {
 			return err
 		}
 		if err := tx.Commit(); err != nil {
@@ -1521,6 +1514,23 @@ func cmdClaim(args []string) error {
 		})
 		return nil
 	})
+}
+
+func claimTask(tx *sql.Tx, agent, taskID, repo, branch, worktree string) error {
+	var existing string
+	err := tx.QueryRow(`SELECT agent FROM claims
+		WHERE repo=? AND branch=? AND worktree=?`, repo, branch, worktree).Scan(&existing)
+	if err != nil && err != sql.ErrNoRows {
+		return err
+	}
+	if existing != "" && existing != agent {
+		return fmt.Errorf("already claimed by %q", existing)
+	}
+	_, err = tx.Exec(`INSERT OR REPLACE INTO claims
+		(agent, task_id, repo, branch, worktree, status, claimed_at)
+		VALUES (?, ?, ?, ?, ?, 'active', ?)`,
+		agent, taskID, repo, branch, worktree, nowUTC())
+	return err
 }
 
 // ---------- release ----------
@@ -1988,7 +1998,7 @@ func cmdDupes(args []string) error {
 	sort.Strings(roots)
 	type groupOut struct {
 		Members    []string `json:"members"`
-		Similarity float64   `json:"similarity"`
+		Similarity float64  `json:"similarity"`
 	}
 	var grps []groupOut
 	for _, r := range roots {

@@ -76,7 +76,6 @@ const dagctlDefaultHTMLTemplate = `<!doctype html>
 EDGES_PLACEHOLDER</pre>
 </body></html>`
 
-
 func envOrPort(key, fallback string) string {
 	if v := os.Getenv(key); v != "" {
 		return v
@@ -1210,7 +1209,7 @@ func cmdCompletionPort(args []string) error {
 	commands := []string{
 		"init", "seed", "status", "validate", "pick", "claim", "release",
 		"heartbeat", "reclaim", "done", "fail", "fill", "scan", "dupes", "export",
-		"seed3", "extend3-v2", "extend3-v3", "dedup-explain",
+		"load", "seed3", "extend3-v2", "extend3-v3", "dedup-explain",
 		"remote-claim", "remote-heartbeat", "remote-release", "remote-claims", "remote-reap", "remote-transfer",
 		"worktree-claim", "agent-stats", "diff", "critical-path",
 		"doctor", "thrash", "sweep", "dispatch",
@@ -1278,36 +1277,101 @@ func cmdAddPort(args []string) error {
 		if err := migrate(db); err != nil {
 			return err
 		}
-		var count int
-		_ = db.QueryRow("SELECT COUNT(*) FROM tasks").Scan(&count)
-		id := fmt.Sprintf("add-%03d", count+1)
-		// Use port's semanticHash (simhash-based; back-compat with dagctl).
-		hash := semanticHashPort(*desc)
-		bestID, bestSim := "", 0.0
-		rows, _ := db.Query("SELECT id, description, COALESCE(subproject,'') FROM tasks WHERE status NOT IN ('done','failed')")
-		for rows.Next() {
-			var existingID, existingDesc, existingSub string
-			_ = rows.Scan(&existingID, &existingDesc, &existingSub)
-			sim := hybridSimilarityPort(*desc, *sub, existingDesc, existingSub)
-			if sim > bestSim {
-				bestSim = sim
-				bestID = existingID
-			}
-		}
-		rows.Close()
-		if bestSim >= 0.85 {
-			fmt.Fprintf(os.Stderr, "DUPLICATE_DETECTED: %.0f%% similar to %s\n", bestSim*100, bestID)
-		}
-		_, err = db.Exec(`INSERT INTO tasks
-			(id, stage, slot, description, repo, subproject, category, lane, branch, kind, priority, semantic_hash, side_dag, status, assigned_agent, created_at, updated_at)
-			VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-			id, *stage, 0, *desc, "", *sub, "", *sub, "main", *kind, *priority, hash, "", "pending", "", nowUTC(), nowUTC())
+		id, err := insertAdhocTask(db, adhocTask{
+			Description: *desc,
+			Subproject:  *sub,
+			Stage:       *stage,
+			Kind:        *kind,
+			Priority:    *priority,
+			Branch:      "main",
+			Status:      "pending",
+		})
 		if err != nil {
 			return err
 		}
 		fmt.Printf("Added %s\n", id)
 		return nil
 	})
+}
+
+type adhocTask struct {
+	Description string
+	Repo        string
+	Subproject  string
+	Stage       int
+	Kind        string
+	Priority    int
+	Branch      string
+	Status      string
+}
+
+type taskWriter interface {
+	Exec(query string, args ...any) (sql.Result, error)
+	Query(query string, args ...any) (*sql.Rows, error)
+	QueryRow(query string, args ...any) *sql.Row
+}
+
+func insertAdhocTask(db taskWriter, task adhocTask) (string, error) {
+	task.Description = strings.TrimSpace(task.Description)
+	if task.Description == "" {
+		return "", fmt.Errorf("task description required")
+	}
+	task.Repo = strings.TrimSpace(task.Repo)
+	task.Subproject = strings.TrimSpace(task.Subproject)
+	if task.Subproject == "" {
+		task.Subproject = "root"
+	}
+	task.Kind = strings.TrimSpace(task.Kind)
+	if task.Kind == "" {
+		task.Kind = "hygiene"
+	}
+	if task.Priority == 0 {
+		task.Priority = 5
+	}
+	task.Branch = strings.TrimSpace(task.Branch)
+	if task.Branch == "" {
+		task.Branch = "main"
+	}
+	task.Status = strings.TrimSpace(task.Status)
+	if task.Status == "" {
+		task.Status = "pending"
+	}
+
+	var count int
+	_ = db.QueryRow("SELECT COUNT(*) FROM tasks").Scan(&count)
+	id := fmt.Sprintf("add-%03d", count+1)
+	hash := semanticHashPort(task.Description)
+	bestID, bestSim := "", 0.0
+	rows, err := db.Query("SELECT id, description, COALESCE(subproject,'') FROM tasks WHERE status NOT IN ('done','failed')")
+	if err != nil {
+		return "", err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var existingID, existingDesc, existingSub string
+		if err := rows.Scan(&existingID, &existingDesc, &existingSub); err != nil {
+			return "", err
+		}
+		sim := hybridSimilarityPort(task.Description, task.Subproject, existingDesc, existingSub)
+		if sim > bestSim {
+			bestSim = sim
+			bestID = existingID
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return "", err
+	}
+	if bestSim >= 0.85 {
+		fmt.Fprintf(os.Stderr, "DUPLICATE_DETECTED: %.0f%% similar to %s\n", bestSim*100, bestID)
+	}
+	_, err = db.Exec(`INSERT INTO tasks
+		(id, stage, slot, description, repo, subproject, category, lane, branch, kind, priority, semantic_hash, side_dag, status, assigned_agent, created_at, updated_at)
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		id, task.Stage, 0, task.Description, task.Repo, task.Subproject, "", task.Subproject, task.Branch, task.Kind, task.Priority, hash, "", task.Status, "", nowUTC(), nowUTC())
+	if err != nil {
+		return "", err
+	}
+	return id, nil
 }
 
 func cmdMergePort(args []string) error {

@@ -41,6 +41,7 @@ git clone https://github.com/KooshaPari/phenodag.git && cd phenodag
 go build -mod=mod -o phenodag .
 ./phenodag init   --width 20 --stages 6 --db FLEET_DAG.db
 ./phenodag seed   --preset v3-180 --db FLEET_DAG.db
+./phenodag load   --yaml examples/repos.yaml --db FLEET_DAG.db
 ./phenodag pick   --agent me --db FLEET_DAG.db
 ./phenodag status --db FLEET_DAG.db
 ```
@@ -51,6 +52,7 @@ go build -mod=mod -o phenodag .
 go build -mod=mod -o phenodag .
 ./phenodag init    --width 20 --stages 6 --db FLEET_DAG.db
 ./phenodag seed    --preset v3-180 --db FLEET_DAG.db     # 120 core + 60 side = 180 tasks
+./phenodag load    --yaml examples/repos.yaml --db FLEET_DAG.db
 ./phenodag status  --db FLEET_DAG.db
 ./phenodag pick    --agent me --db FLEET_DAG.db          # atomic
 ./phenodag claim   --agent me --repo HexaKit --branch feat/x --task <id> --db FLEET_DAG.db
@@ -64,7 +66,7 @@ go build -mod=mod -o phenodag .
 
 ```
 phenodag (this binary)
-  ├── phenodag.go              — single-file CLI (init/seed/status/validate/pick/claim/release/heartbeat/done/fail/fill/scan/dupes/export/seed-yaml)
+  ├── phenodag.go              — single-file CLI (init/seed/load/status/validate/pick/claim/release/heartbeat/done/fail/fill/scan/dupes/export/seed-yaml)
   ├── internal/preset/         — YAML loader (`seed-yaml --preset <name>`)  ✅ v1 schema frozen
   ├── internal/remoteclaim/    — POSIX flock + SQLite store (PK on (agent, repo, branch, worktree))
   ├── presets/                 — 7 built-in YAML presets (v3-180, melosviz-185, agileplus-50, tracera-50, mcp-fleet-60, mcp-fleet-90, empty)
@@ -91,6 +93,16 @@ python scripts/generate_preset.py forge-120 8 15 0 0 --repo forge
 ```
 
 The legacy `seed` subcommand is still available for backwards compatibility (the 6 hard-coded presets: v3-180, melosviz-185, agileplus-50, tracera-50, mcp-fleet-60, mcp-fleet-90).
+
+## Multi-Repo YAML Ingest
+
+Use `load` to append ad hoc repo work from YAML without changing the frozen preset schema:
+
+```bash
+./phenodag load --yaml examples/repos.yaml --db FLEET_DAG.db
+```
+
+Each item is a `{repo, branch, task, state}` tuple. `load` reuses the same insertion path as `add`, including semantic hashing and fuzzy duplicate warnings.
 
 ## Presets
 

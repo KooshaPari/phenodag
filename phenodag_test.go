@@ -106,6 +106,59 @@ func TestHashIDStable(t *testing.T) {
 	}
 }
 
+func TestReadLoadYAMLList(t *testing.T) {
+	path := t.TempDir() + "/repos.yaml"
+	err := os.WriteFile(path, []byte(`
+- repo: alpha
+  branch: feat/a
+  task: add yaml ingest
+  state: ready
+`), 0o600)
+	if err != nil {
+		t.Fatal(err)
+	}
+	items, err := readLoadYAML(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 1 {
+		t.Fatalf("len(items) = %d, want 1", len(items))
+	}
+	if items[0].Repo != "alpha" || items[0].Branch != "feat/a" || items[0].Task != "add yaml ingest" || items[0].State != "ready" {
+		t.Fatalf("unexpected item: %+v", items[0])
+	}
+}
+
+func TestLoadItemsUsesAdhocInsertPath(t *testing.T) {
+	db, err := sql.Open("sqlite", "file:load_items?mode=memory&cache=shared")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	if err := migrate(db); err != nil {
+		t.Fatal(err)
+	}
+	err = loadItems(db, []loadYAMLItem{{
+		Repo:   "alpha",
+		Branch: "feat/a",
+		Task:   "add yaml ingest",
+		State:  "ready",
+	}}, "loader")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var repo, branch, desc, subproject, kind, status, agent string
+	err = db.QueryRow(`SELECT t.repo, t.branch, t.description, t.subproject, t.kind, t.status, c.agent
+		FROM tasks t JOIN claims c ON c.task_id=t.id WHERE t.id='add-001'`).
+		Scan(&repo, &branch, &desc, &subproject, &kind, &status, &agent)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if repo != "alpha" || branch != "feat/a" || desc != "add yaml ingest" || subproject != "alpha" || kind != "task" || status != "ready" || agent != "loader" {
+		t.Fatalf("unexpected inserted task: repo=%q branch=%q desc=%q subproject=%q kind=%q status=%q agent=%q", repo, branch, desc, subproject, kind, status, agent)
+	}
+}
+
 func TestV3CoreHas120(t *testing.T) {
 	tasks := v3Core()
 	if got := len(tasks); got != 120 {
