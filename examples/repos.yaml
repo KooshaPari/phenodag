@@ -1,0 +1,8 @@
+- repo: HexaKit
+  branch: feat/yaml-ingest
+  task: Add YAML ingest coverage for repo task loading
+  state: ready
+- repo: PhenoDevOps
+  branch: fix/ci-staticcheck
+  task: Resolve staticcheck warnings in the CI quality gate
+  state: pending
