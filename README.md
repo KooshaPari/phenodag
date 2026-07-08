@@ -1,6 +1,6 @@
 # phenodag
 
-> **DEPRECATED -- thin redirector only. Archive target: 2026-07-12 (1 release cycle from 2026-07-05).**
+> **ARCHIVED -- this repository is now read-only. See Tracera and AgilePlus for active development.**
 
 phenodag has been **absorbed** into the Phenotype polyrepo portfolio. The
 DAG / queue / atomic-claim / lease surface lives in
